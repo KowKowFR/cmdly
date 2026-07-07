@@ -11,6 +11,10 @@
   --color-success: #22C55E;
   --color-warning: #F59E0B;
   --color-danger: #EF4444;
+
+  /* Brand aliases — same values as primary/accent, exposed as bg-navy / bg-orange */
+  --color-navy: #1A365D;
+  --color-orange: #DD6B20;
 }
 
 @theme inline {
