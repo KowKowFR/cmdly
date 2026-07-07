@@ -93,7 +93,7 @@ fi
 log "Checking Terraform..."
 
 if command -v terraform &>/dev/null; then
-  log "Terraform $(terraform version -json | grep -oP '"terraform_version":"\K[^"]+' || terraform version | head -1) already installed. Skipping."
+  log "Terraform $(terraform version | awk 'NR==1{print $2}') already installed. Skipping."
 else
   log "Installing Terraform via HashiCorp APT repo..."
   apt-get install -y -qq gnupg software-properties-common lsb-release
@@ -123,7 +123,7 @@ log "Checking PostgreSQL..."
 
 pg_installed=false
 if command -v psql &>/dev/null; then
-  pg_ver="$(psql --version | grep -oP '\d+' | head -1)"
+  pg_ver="$(psql --version | awk '{print $3}' | cut -d'.' -f1)"
   if [[ "$pg_ver" -ge "$PG_MIN_VERSION" ]]; then
     log "PostgreSQL ${pg_ver} already installed. Skipping installation."
     pg_installed=true
@@ -153,11 +153,25 @@ fi
 # Create DB role + database (idempotent)
 log "Ensuring PostgreSQL role '${PG_USER}' and database '${PG_DB}' exist..."
 
-su -c "psql -tc \"SELECT 1 FROM pg_roles WHERE rolname='${PG_USER}'\" | grep -q 1 \
-  || psql -c \"CREATE ROLE ${PG_USER} LOGIN PASSWORD '${PG_PASSWORD}'\"" postgres
+# Create role — write SQL to a temp file so PG_PASSWORD never appears in ps output
+_pg_sql="$(mktemp /tmp/cmdly_pgsetup.XXXXXX)"
+chmod 600 "$_pg_sql"
+cat >"$_pg_sql" <<PGSQL
+DO \$do\$
+BEGIN
+  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '${PG_USER}') THEN
+    CREATE ROLE ${PG_USER} LOGIN PASSWORD '${PG_PASSWORD}';
+  END IF;
+END
+\$do\$;
+PGSQL
+chown postgres "$_pg_sql"
+su - postgres -c "psql -f '$_pg_sql'"
+rm -f "$_pg_sql"
 
-su -c "psql -tc \"SELECT 1 FROM pg_database WHERE datname='${PG_DB}'\" | grep -q 1 \
-  || psql -c \"CREATE DATABASE ${PG_DB} OWNER ${PG_USER}\"" postgres
+# Create database (idempotent; database name is not sensitive)
+su - postgres -c "psql -tc \"SELECT 1 FROM pg_database WHERE datname='${PG_DB}'\" | grep -q 1 \
+  || psql -c \"CREATE DATABASE ${PG_DB} OWNER ${PG_USER}\""
 
 log "PostgreSQL role and database ready."
 
@@ -172,22 +186,11 @@ else
   git clone "$CMDLY_REPO_URL" "$CMDLY_DIR"
 fi
 
-# ─── Step 7: npm install + build ─────────────────────────────────────────────
-log "Installing npm dependencies and building..."
-cd "$CMDLY_DIR"
-
-if [[ -f package-lock.json ]]; then
-  npm ci --omit=dev
-else
-  npm install --omit=dev
-fi
-
-npm run build
-log "Build complete."
-
-# ─── Step 8: Write .env if absent ────────────────────────────────────────────
+# ─── Step 7: Write .env if absent ────────────────────────────────────────────
+# .env must exist BEFORE the build so Next.js embeds correct NEXT_PUBLIC_* values.
 log "Checking .env configuration..."
 
+cd "$CMDLY_DIR"
 ENV_FILE="${CMDLY_DIR}/.env"
 
 if [[ -f "$ENV_FILE" ]]; then
@@ -203,9 +206,23 @@ BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
 BETTER_AUTH_URL=http://${HOST_IP}:${CMDLY_PORT}
 NEXT_PUBLIC_APP_URL=http://${HOST_IP}:${CMDLY_PORT}
 EOF
-  chmod 640 "$ENV_FILE"
+  chmod 600 "$ENV_FILE"
   log ".env written to ${ENV_FILE} (secrets NOT echoed to this log)."
 fi
+
+# ─── Step 8: npm install + build ─────────────────────────────────────────────
+# Install WITH devDependencies — next build needs tailwindcss/typescript/etc.;
+# drizzle-kit migrate needs drizzle-kit (also a devDependency).
+log "Installing npm dependencies and building..."
+
+if [[ -f package-lock.json ]]; then
+  npm ci
+else
+  npm install
+fi
+
+npm run build
+log "Build complete."
 
 # ─── Step 9: Run DB migrations ───────────────────────────────────────────────
 log "Running database migrations..."
@@ -261,8 +278,13 @@ fi
 
 systemctl daemon-reload
 systemctl enable cmdly
-systemctl restart cmdly
-log "CMDLY service enabled and started."
+if systemctl is-active --quiet cmdly; then
+  systemctl try-restart cmdly
+  log "CMDLY service restarted (try-restart — was already running)."
+else
+  systemctl start cmdly
+  log "CMDLY service started."
+fi
 
 # ─── Step 11: Print access info ──────────────────────────────────────────────
 HOST_IP="$(hostname -I | awk '{print $1}')"

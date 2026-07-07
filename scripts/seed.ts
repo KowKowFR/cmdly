@@ -106,24 +106,28 @@ async function main() {
   const passwordHash = await hashPassword(ADMIN_PASSWORD);
   const now = new Date();
 
-  await db.insert(schema.users).values({
-    id: userId,
-    email: ADMIN_EMAIL,
-    name: ADMIN_NAME,
-    emailVerified: true,
-    role: "admin",
-    createdAt: now,
-    updatedAt: now,
-  });
+  // Wrap both inserts in a transaction so a crash can't leave an orphan user
+  // with no associated credential account.
+  await db.transaction(async (tx) => {
+    await tx.insert(schema.users).values({
+      id: userId,
+      email: ADMIN_EMAIL,
+      name: ADMIN_NAME,
+      emailVerified: true,
+      role: "admin",
+      createdAt: now,
+      updatedAt: now,
+    });
 
-  await db.insert(schema.accounts).values({
-    id: accountId,
-    accountId: ADMIN_EMAIL,
-    providerId: "credential",
-    userId,
-    password: passwordHash,
-    createdAt: now,
-    updatedAt: now,
+    await tx.insert(schema.accounts).values({
+      id: accountId,
+      accountId: ADMIN_EMAIL,
+      providerId: "credential",
+      userId,
+      password: passwordHash,
+      createdAt: now,
+      updatedAt: now,
+    });
   });
 
   console.log("[seed] ✓ Admin user created successfully.");
