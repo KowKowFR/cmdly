@@ -3,11 +3,13 @@
  *
  * LDAP authentication endpoint. When LDAP is enabled in the infrastructure
  * config, this route:
- *   1. Validates the JSON body { username, password }.
- *   2. Calls ldapBind to verify the user against the directory.
- *   3. Find-or-creates a local `users` row (passwordHash stays null — LDAP
+ *   1. Checks the Origin header against BETTER_AUTH_URL (CSRF guard).
+ *   2. Checks the client IP against the in-memory rate-limit store.
+ *   3. Validates the JSON body { username, password }.
+ *   4. Calls ldapBind to verify the user against the directory.
+ *   5. Find-or-creates a local `users` row (passwordHash stays null — LDAP
  *      users have no local password).
- *   4. Issues a better-auth session by calling
+ *   6. Issues a better-auth session by calling
  *      `(await auth.$context).internalAdapter.createSession(userId)`.
  *      The returned session token is HMAC-SHA256–signed (same algorithm that
  *      better-call uses internally) and written as the `better-auth.session_token`
@@ -18,7 +20,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod/v4";
 import { eq } from "drizzle-orm";
-import { createHmac, randomUUID } from "crypto";
+import { randomUUID } from "crypto";
 
 import { getConfig } from "@/lib/config";
 import { ldapBind } from "@/lib/auth/ldap";
@@ -26,6 +28,12 @@ import { auth } from "@/lib/auth/config";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
 import { logger } from "@/lib/logger";
+import { signCookieValue } from "@/lib/auth/sessionCookie";
+import {
+  recordAndCheck,
+  recordFailure,
+  recordSuccess,
+} from "@/lib/auth/ldapRateLimit";
 
 // ─── Input schema ─────────────────────────────────────────────────────────────
 
@@ -34,30 +42,52 @@ const LdapLoginSchema = z.object({
   password: z.string().min(1),
 });
 
-// ─── Cookie signing (mirrors better-call's signCookieValue) ──────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 /**
- * Sign a cookie value with HMAC-SHA256 using the better-auth secret.
- * Produces the same format as better-call's `setSignedCookie`:
- *   encodeURIComponent(`${value}.${base64Signature}`)
+ * Extract the client IP from the request.
+ * Prefers the first hop in X-Forwarded-For (set by reverse proxies).
+ * Falls back to X-Real-IP, then "unknown".
  */
-function signCookieValue(value: string, secret: string): string {
-  const signature = createHmac("sha256", secret)
-    .update(value)
-    .digest("base64");
-  return encodeURIComponent(`${value}.${signature}`);
+function getClientIp(req: NextRequest): string {
+  const xff = req.headers.get("x-forwarded-for");
+  if (xff) {
+    const first = xff.split(",")[0]?.trim();
+    if (first) return first;
+  }
+  const realIp = req.headers.get("x-real-ip");
+  if (realIp) return realIp.trim();
+  return "unknown";
 }
 
 // ─── Route handler ────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
-  // 1. Check if LDAP is enabled
+  // 1. CSRF origin check
+  //
+  // Design choice: reject only when the Origin header is PRESENT and does NOT
+  // match BETTER_AUTH_URL.  Absent-Origin requests are allowed because
+  // same-origin fetches from Next.js server components / RSC may omit the
+  // Origin header entirely (e.g. server-side test helpers, curl without -H).
+  // Rejecting absent-Origin would break those legitimate callers while offering
+  // minimal additional security over rejecting mismatched origins.
+  const origin = req.headers.get("origin");
+  const trustedOrigin = process.env.BETTER_AUTH_URL;
+  if (origin !== null && trustedOrigin && origin !== trustedOrigin) {
+    logger.warn("LDAP: rejected request with mismatched Origin", { origin, trustedOrigin });
+    return NextResponse.json(
+      { ok: false, error: "Origine non autorisée" },
+      { status: 403 },
+    );
+  }
+
+  // 2. Check if LDAP is enabled
   const config = await getConfig();
   if (!config.ldapEnabled) {
     return NextResponse.json({ error: "LDAP authentication is not enabled" }, { status: 400 });
   }
 
-  // 2. Parse and validate body
+  // 3. Parse and validate body
   let body: unknown;
   try {
     body = await req.json();
@@ -75,7 +105,25 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   const { username, password } = parsed.data;
 
-  // 3. LDAP bind
+  // 4. IP-based rate limiting — check BEFORE touching LDAP
+  //
+  // 5 failed attempts per 15 minutes (900 s) per client IP.  The in-memory
+  // store is single-instance (consistent with the app's other in-memory stores).
+  const clientIp = getClientIp(req);
+  const rlCheck = recordAndCheck(clientIp);
+  if (rlCheck.blocked) {
+    return NextResponse.json(
+      { ok: false, error: "Trop de tentatives. Réessayez plus tard." },
+      {
+        status: 429,
+        headers: rlCheck.retryAfterSec !== undefined
+          ? { "Retry-After": String(rlCheck.retryAfterSec) }
+          : {},
+      },
+    );
+  }
+
+  // 5. LDAP bind
   const ldapResult = await ldapBind(
     {
       ldapUrl: config.ldapUrl,
@@ -88,10 +136,14 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   );
 
   if (!ldapResult.ok) {
+    recordFailure(clientIp);
     return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
   }
 
-  // 4. Find-or-create local user row
+  // Successful bind — clear any accumulated failure counter for this IP
+  recordSuccess(clientIp);
+
+  // 6. Find-or-create local user row
   // Normalize to email: if username looks like an email use it; otherwise
   // derive a synthetic email so the unique constraint is satisfied.
   const email = username.includes("@") ? username : `${username}@ldap.local`;
@@ -120,7 +172,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     logger.info("LDAP: created local user row", { userId, email });
   }
 
-  // 5. Issue a better-auth session
+  // 7. Issue a better-auth session
   //
   // We access better-auth's internal adapter through `auth.$context` (a Promise
   // that resolves to the AuthContext). `internalAdapter.createSession(userId)`

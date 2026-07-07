@@ -7,6 +7,7 @@ import {
   type LdapEntry,
   type LdapSearchOptions,
 } from "./ldap.js";
+import { signCookieValue, verifyCookieValue } from "./sessionCookie.js";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -126,6 +127,14 @@ describe("ldapBind", () => {
       `Filter should not contain raw injection string: ${capturedFilter}`,
     );
 
+    // Guard against partial-escape regressions: even a lone uid=* must not
+    // appear in the filter (catches cases where only the leading * is escaped
+    // but the interior *)(uid=*) segment leaks through).
+    assert.ok(
+      !capturedFilter.includes("uid=*"),
+      `Filter should not contain partial-escape residue "uid=*": ${capturedFilter}`,
+    );
+
     // The escaped form must be present
     // '*' → '\\2a', '(' → '\\28', ')' → '\\29'
     assert.ok(
@@ -160,5 +169,54 @@ describe("escapeLdapFilter", () => {
   test("escapes a full injection payload", () => {
     const escaped = escapeLdapFilter("*)(uid=*)");
     assert.equal(escaped, "\\2a\\29\\28uid=\\2a\\29");
+  });
+});
+
+// ─── Session cookie signing round-trip ───────────────────────────────────────
+//
+// These tests prove that signCookieValue + verifyCookieValue are inverses of
+// each other using the SAME secret and algorithm.  If better-call ever changes
+// its signing scheme and the LDAP route's signCookieValue is updated to match,
+// this test will still pass; the real guard against LDAP-issued cookies being
+// rejected by better-auth is in session.test.ts (getSession integration test).
+
+describe("signCookieValue / verifyCookieValue round-trip", () => {
+  const SECRET = "test-secret-exactly-32-chars-xxx";
+  const TOKEN = "abc123randomtoken";
+
+  test("signed value is URL-encoded and contains token + signature", () => {
+    const signed = signCookieValue(TOKEN, SECRET);
+    // Must be URL-encoded (no raw dots at the top level before decoding)
+    const decoded = decodeURIComponent(signed);
+    assert.ok(decoded.startsWith(TOKEN + "."), `decoded should start with token: ${decoded}`);
+    // Signature portion should be a non-empty base64 string
+    const sig = decoded.slice(TOKEN.length + 1);
+    assert.ok(sig.length > 0, "signature should not be empty");
+  });
+
+  test("verifyCookieValue returns the original token for a valid signed value", () => {
+    const signed = signCookieValue(TOKEN, SECRET);
+    const result = verifyCookieValue(signed, SECRET);
+    assert.equal(result, TOKEN);
+  });
+
+  test("verifyCookieValue returns null for a tampered signature", () => {
+    const signed = signCookieValue(TOKEN, SECRET);
+    // Flip the last character of the signed string to simulate tampering
+    const tampered = signed.slice(0, -1) + (signed.endsWith("A") ? "B" : "A");
+    const result = verifyCookieValue(tampered, SECRET);
+    assert.equal(result, null);
+  });
+
+  test("verifyCookieValue returns null for a different secret", () => {
+    const signed = signCookieValue(TOKEN, SECRET);
+    const result = verifyCookieValue(signed, "wrong-secret-exactly-32-chars-xx");
+    assert.equal(result, null);
+  });
+
+  test("signCookieValue is deterministic for the same inputs", () => {
+    const s1 = signCookieValue(TOKEN, SECRET);
+    const s2 = signCookieValue(TOKEN, SECRET);
+    assert.equal(s1, s2);
   });
 });
