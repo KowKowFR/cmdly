@@ -5,6 +5,12 @@ import { Loader2, CheckCircle2, XCircle, ChevronDown, ChevronUp } from "lucide-r
 import { motion, AnimatePresence } from "framer-motion";
 import type { ChatToolCall, ToolCallStatus } from "@/hooks/useChat";
 
+// ─── Rate-limit detection ─────────────────────────────────────────────────────
+
+function isRateLimited(humanReadable?: string): boolean {
+  return humanReadable?.includes("Limite de débit") ?? false;
+}
+
 // ─── Status icon ──────────────────────────────────────────────────────────────
 
 function StatusIcon({ status }: { status: ToolCallStatus }) {
@@ -28,6 +34,7 @@ interface ToolCallBadgeProps {
 export function ToolCallBadge({ toolCall }: ToolCallBadgeProps) {
   const [expanded, setExpanded] = useState(false);
   const hasDetail = toolCall.humanReadable !== undefined;
+  const rateLimited = isRateLimited(toolCall.humanReadable);
 
   return (
     <div className="rounded-lg border border-white/10 bg-white/5 text-xs overflow-hidden">
@@ -41,6 +48,11 @@ export function ToolCallBadge({ toolCall }: ToolCallBadgeProps) {
       >
         <StatusIcon status={toolCall.status} />
         <span className="font-mono text-white/80 flex-1">{toolCall.name}</span>
+        {rateLimited && (
+          <span className="rounded px-1 py-0.5 text-[10px] font-medium bg-amber-500/20 text-amber-400">
+            limité
+          </span>
+        )}
         {hasDetail && (
           expanded
             ? <ChevronUp className="size-3 text-white/40" />

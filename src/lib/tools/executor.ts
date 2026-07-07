@@ -110,17 +110,22 @@ export async function executeTool(
     // Runs AFTER the confirmation gate so an unconfirmed call never burns a slot.
     const rateCheck = await checkRateLimit(ctx.userId, tool.category);
     if (!rateCheck.allowed) {
+      const resetTime = rateCheck.resetAt.toLocaleTimeString("fr-FR", {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+      const rateLimitMsg = `Limite de débit atteinte pour cette action. Réessayez après ${resetTime}.`;
       await audit({
         userId: ctx.userId,
         action: "tool_call_failed",
         toolName: name,
         params: rawParams,
-        errorMessage: `rate limit exceeded, retry after ${rateCheck.resetAt.toISOString()}`,
+        errorMessage: rateLimitMsg,
         ipAddress: ctx.ipAddress,
       });
       return {
         status: "error",
-        reason: `rate limit exceeded, retry after ${rateCheck.resetAt.toISOString()}`,
+        reason: rateLimitMsg,
       };
     }
 

@@ -287,6 +287,56 @@ test("bad params (Zod fail) → error mentioning invalid field", async () => {
   });
 });
 
+test("destroy category: 2nd call in same window → error with rate-limit reason + tool_call_failed audit", async () => {
+  // Use a unique userId so this test is fully isolated from other tests.
+  const rlUserId = `exec-rl-destroy-${process.pid}-${Date.now()}`;
+  const rlUserEmail = `exec-rl-destroy-${process.pid}@test.local`;
+
+  await db.insert(users).values({
+    id: rlUserId,
+    email: rlUserEmail,
+    name: "Exec RL Destroy Test",
+    emailVerified: false,
+  }).onConflictDoNothing();
+
+  const destroyRLTool: Tool = {
+    name: `fake_destroy_rl_${process.pid}`,
+    description: "Fake destroy tool (no confirm) for rate-limit test",
+    category: "destroy",
+    requiredRole: "admin",
+    parameters: z.object({ id: z.string() }),
+    execute: async (_p, _ctx) => ({ success: true, humanReadable: "destroyed" }),
+  };
+
+  try {
+    await withFakeTool(destroyRLTool, async () => {
+      const ctx = makeCtx(rlUserId, "admin");
+
+      // 1st call: destroy limit = 1/min → must succeed
+      const outcome1 = await executeTool(destroyRLTool.name, { id: "vm-1" }, ctx);
+      assert.equal(outcome1.status, "success", "1st destroy call should succeed");
+
+      // 2nd call: limit exhausted → must be rate-limited
+      const outcome2 = await executeTool(destroyRLTool.name, { id: "vm-2" }, ctx);
+      assert.equal(outcome2.status, "error", "2nd destroy call should return error");
+      if (outcome2.status === "error") {
+        assert.ok(
+          outcome2.reason.includes("Limite de débit"),
+          `Reason should mention rate limit in French, got: ${outcome2.reason}`
+        );
+      }
+
+      // Audit: a tool_call_failed row must exist for the denied 2nd call
+      const failed = await getAuditRows(rlUserId, destroyRLTool.name, "tool_call_failed");
+      assert.ok(failed.length >= 1, "tool_call_failed audit row should exist for rate-limited call");
+    });
+  } finally {
+    // Clean up: cascade via user delete (auditLog has FK on users.id)
+    await db.delete(rateLimits).where(eq(rateLimits.userId, rlUserId));
+    await db.delete(users).where(eq(users.id, rlUserId));
+  }
+});
+
 test("destroy + CONFIRM_REQUIRED: unconfirmed consumes NO rate slot; confirmed retry succeeds", async () => {
   // This test verifies Fix 2: rate-limit runs AFTER the confirmation gate.
   // destroy limit is 1/min.  If the unconfirmed call burned the slot the
