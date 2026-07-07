@@ -48,7 +48,7 @@ export function sseStream(
         controller.close();
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
-        controller.enqueue(encoder.encode(encodeSSE("error", { message })));
+        controller.enqueue(encoder.encode(encodeSSE("error", { type: "error", message })));
         controller.close();
       }
     },

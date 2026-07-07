@@ -98,6 +98,7 @@ test("chatStream: text delta then streamed tool_call yields token, tool_call, do
 
 // ─── Test 2: pure-text stream → token(s) + done, no tool_call ────────────────
 
+
 test("chatStream: pure text stream yields tokens then done", async () => {
   const chunks: StreamChunk[] = [
     { choices: [{ delta: { content: "Foo" }, finish_reason: null }] },
@@ -120,4 +121,117 @@ test("chatStream: pure text stream yields tokens then done", async () => {
 
   const toolCallEvents = events.filter((e) => e.type === "tool_call");
   assert.equal(toolCallEvents.length, 0, "no tool_call events for pure text");
+});
+
+// ─── Test 3: two simultaneous tool calls at index 0 and 1 → two tool_call events in order ───
+
+test("chatStream: two simultaneous tool calls yield two tool_call events in index order then done", async () => {
+  const chunks: StreamChunk[] = [
+    // First chunk: establish both tool calls with id and name
+    {
+      choices: [
+        {
+          delta: {
+            tool_calls: [
+              { index: 0, id: "call_a", function: { name: "search", arguments: '{"q":' } },
+              { index: 1, id: "call_b", function: { name: "fetch", arguments: '{"url":' } },
+            ],
+          },
+          finish_reason: null,
+        },
+      ],
+    },
+    // Second chunk: argument continuations for both
+    {
+      choices: [
+        {
+          delta: {
+            tool_calls: [
+              { index: 0, function: { arguments: '"hello"}' } },
+              { index: 1, function: { arguments: '"https://x.com"}' } },
+            ],
+          },
+          finish_reason: null,
+        },
+      ],
+    },
+    // Done
+    {
+      choices: [{ delta: {}, finish_reason: "tool_calls" }],
+    },
+  ];
+
+  const provider = new OpenAIProvider("fake-key", makeFakeClient(chunks));
+  const events: LLMEvent[] = [];
+  for await (const event of provider.chatStream({ model: "gpt-4o", messages: msgs, tools: noTools })) {
+    events.push(event);
+  }
+
+  assert.equal(events.length, 3, "should yield exactly 3 events: tool_call(0), tool_call(1), done");
+
+  const [ev0, ev1, ev2] = events;
+
+  // First tool call (index 0)
+  assert.ok(ev0 !== undefined && ev0.type === "tool_call", "first event is tool_call");
+  assert.ok(ev0.type === "tool_call" && ev0.call.id === "call_a", "first tool_call id is call_a");
+  assert.ok(ev0.type === "tool_call" && ev0.call.name === "search", "first tool_call name is search");
+  assert.deepEqual(
+    ev0.type === "tool_call" ? ev0.call.arguments : null,
+    { q: "hello" },
+    "first tool_call arguments parsed correctly"
+  );
+
+  // Second tool call (index 1)
+  assert.ok(ev1 !== undefined && ev1.type === "tool_call", "second event is tool_call");
+  assert.ok(ev1.type === "tool_call" && ev1.call.id === "call_b", "second tool_call id is call_b");
+  assert.ok(ev1.type === "tool_call" && ev1.call.name === "fetch", "second tool_call name is fetch");
+  assert.deepEqual(
+    ev1.type === "tool_call" ? ev1.call.arguments : null,
+    { url: "https://x.com" },
+    "second tool_call arguments parsed correctly"
+  );
+
+  assert.ok(ev2 !== undefined && ev2.type === "done", "last event is done");
+});
+
+// ─── Test 4: malformed tool-call args → error event, no tool_call ─────────────
+
+test("chatStream: malformed tool-call arguments yields error event and no tool_call", async () => {
+  const chunks: StreamChunk[] = [
+    {
+      choices: [
+        {
+          delta: {
+            tool_calls: [
+              { index: 0, id: "call_bad", function: { name: "broken_tool", arguments: "{not: valid json" } },
+            ],
+          },
+          finish_reason: null,
+        },
+      ],
+    },
+    {
+      choices: [{ delta: {}, finish_reason: "tool_calls" }],
+    },
+  ];
+
+  const provider = new OpenAIProvider("fake-key", makeFakeClient(chunks));
+  const events: LLMEvent[] = [];
+  for await (const event of provider.chatStream({ model: "gpt-4o", messages: msgs, tools: noTools })) {
+    events.push(event);
+  }
+
+  assert.equal(events.length, 2, "should yield exactly 2 events: error, done");
+
+  const [ev0, ev1] = events;
+  assert.ok(ev0 !== undefined && ev0.type === "error", "first event is error");
+  assert.ok(
+    ev0.type === "error" && ev0.message.includes("broken_tool"),
+    "error message references the tool name"
+  );
+
+  const toolCallEvents = events.filter((e) => e.type === "tool_call");
+  assert.equal(toolCallEvents.length, 0, "no tool_call events when args are malformed");
+
+  assert.ok(ev1 !== undefined && ev1.type === "done", "last event is done");
 });

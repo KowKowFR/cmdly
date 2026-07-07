@@ -147,7 +147,7 @@ export class OpenAIProvider implements LLMProvider {
               });
             } else {
               if (tc.id) existing.id = tc.id;
-              if (tc.function?.name) existing.name += tc.function.name;
+              if (tc.function?.name) existing.name = tc.function.name;
               if (tc.function?.arguments) existing.args += tc.function.arguments;
             }
           }
@@ -163,13 +163,17 @@ export class OpenAIProvider implements LLMProvider {
         let parsedArgs: Record<string, unknown>;
         try {
           parsedArgs = JSON.parse(call.args) as Record<string, unknown>;
-        } catch {
+        } catch (err) {
           logger.error("Failed to parse tool call arguments", {
             id: call.id,
             name: call.name,
             raw: call.args,
           });
-          parsedArgs = {};
+          yield {
+            type: "error",
+            message: `Failed to parse arguments for tool call ${call.name}: ${err instanceof Error ? err.message : String(err)}`,
+          };
+          continue;
         }
 
         const toolCall: LLMToolCall = {
