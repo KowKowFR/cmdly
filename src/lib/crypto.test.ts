@@ -13,6 +13,10 @@ test("two encryptions differ (random IV)", () => {
 });
 test("tampered ciphertext throws", () => {
   const c = encrypt("secret");
-  const bad = Buffer.from(c, "base64"); bad[bad.length - 1] ^= 0xff;
+  const bad = Buffer.from(c, "base64");
+  const lastIdx = bad.length - 1;
+  const lastByte = bad[lastIdx];
+  assert.ok(lastByte !== undefined);
+  bad[lastIdx] = lastByte ^ 0xff;
   assert.throws(() => decrypt(bad.toString("base64")));
 });

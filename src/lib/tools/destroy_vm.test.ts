@@ -200,9 +200,10 @@ test("destroy_vm: execute calls terraform.destroy with correct target and return
 
   assert.equal(result.success, true);
   assert.ok(destroyCalledWith !== null, "terraform.destroy should have been called");
-  assert.equal(destroyCalledWith!.repoPath, "/fake/repo");
+  const captured = destroyCalledWith as { repoPath: string; target: string | undefined };
+  assert.equal(captured.repoPath, "/fake/repo");
   assert.equal(
-    destroyCalledWith!.target,
+    captured.target,
     "proxmox_vm_qemu.web-01",
     "target should be proxmox_vm_qemu.<name>"
   );

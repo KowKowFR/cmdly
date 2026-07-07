@@ -11,7 +11,7 @@ import { onboardingSchemas } from "./onboarding";
 // ─── Step 2 — Admin account ───────────────────────────────────────────────────
 
 describe("Step 2 – admin account", () => {
-  const schema = onboardingSchemas[2];
+  const schema = onboardingSchemas[2]!;
 
   it("rejects a weak password (too short)", () => {
     const result = schema.safeParse({ email: "admin@cmdly.dev", password: "short", name: "Admin" });
@@ -42,7 +42,7 @@ describe("Step 2 – admin account", () => {
 // ─── Step 3 — Proxmox ─────────────────────────────────────────────────────────
 
 describe("Step 3 – Proxmox", () => {
-  const schema = onboardingSchemas[3];
+  const schema = onboardingSchemas[3]!;
 
   it("rejects missing host", () => {
     const result = schema.safeParse({
@@ -76,7 +76,7 @@ describe("Step 3 – Proxmox", () => {
     });
     assert.equal(result.success, true);
     if (result.success) {
-      assert.equal(result.data.proxmoxPort, 8006);
+      assert.equal((result.data as { proxmoxPort: number }).proxmoxPort, 8006);
     }
   });
 
@@ -91,7 +91,7 @@ describe("Step 3 – Proxmox", () => {
     });
     assert.equal(result.success, true);
     if (result.success) {
-      assert.equal(result.data.proxmoxPort, 9000);
+      assert.equal((result.data as { proxmoxPort: number }).proxmoxPort, 9000);
     }
   });
 });
@@ -99,7 +99,7 @@ describe("Step 3 – Proxmox", () => {
 // ─── Step 4 — Infra repo (discriminated union) ────────────────────────────────
 
 describe("Step 4 – infra repo", () => {
-  const schema = onboardingSchemas[4];
+  const schema = onboardingSchemas[4]!;
 
   it("rejects git type without URL", () => {
     const result = schema.safeParse({ infraRepoType: "git" });
@@ -125,7 +125,7 @@ describe("Step 4 – infra repo", () => {
     const result = schema.safeParse({ infraRepoType: "git", infraRepoGitUrl: "https://github.com/org/infra.git" });
     assert.equal(result.success, true);
     if (result.success) {
-      assert.equal(result.data.infraRepoGitBranch, "main");
+      assert.equal((result.data as { infraRepoGitBranch: string }).infraRepoGitBranch, "main");
     }
   });
 });
@@ -133,7 +133,7 @@ describe("Step 4 – infra repo", () => {
 // ─── Step 7 — LLM ─────────────────────────────────────────────────────────────
 
 describe("Step 7 – LLM provider", () => {
-  const schema = onboardingSchemas[7];
+  const schema = onboardingSchemas[7]!;
 
   it("rejects openai without API key", () => {
     const result = schema.safeParse({ defaultLlmProvider: "openai", openaiApiKey: "" });
@@ -160,17 +160,17 @@ describe("Step 7 – LLM provider", () => {
 
 describe("Passthrough steps (1, 11, 12)", () => {
   it("step 1 accepts any data", () => {
-    const result = onboardingSchemas[1].safeParse({});
+    const result = onboardingSchemas[1]!.safeParse({});
     assert.equal(result.success, true);
   });
 
   it("step 11 accepts any data", () => {
-    const result = onboardingSchemas[11].safeParse({ anything: "goes" });
+    const result = onboardingSchemas[11]!.safeParse({ anything: "goes" });
     assert.equal(result.success, true);
   });
 
   it("step 12 accepts any data", () => {
-    const result = onboardingSchemas[12].safeParse({ anything: "goes" });
+    const result = onboardingSchemas[12]!.safeParse({ anything: "goes" });
     assert.equal(result.success, true);
   });
 });

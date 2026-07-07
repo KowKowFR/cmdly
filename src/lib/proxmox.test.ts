@@ -19,7 +19,7 @@ const cfg = {
   proxmoxTokenId: "mytoken",
   proxmoxTokenSecret: "mysecret",
   proxmoxNode: "pve",
-} as Parameters<typeof ProxmoxClient.prototype.constructor>[0];
+} as ConstructorParameters<typeof ProxmoxClient>[0];
 
 // ─── listVms ──────────────────────────────────────────────────────────────────
 
