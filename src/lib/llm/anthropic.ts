@@ -207,9 +207,13 @@ export class AnthropicProvider implements LLMProvider {
           const block = toolBlocks.get(event.index);
           if (block !== undefined) {
             toolBlocks.delete(event.index);
+            // A no-argument tool (e.g. list_vms with an empty schema) may stream
+            // no input_json_delta at all, leaving jsonFragments empty. Treat that
+            // as an empty argument object rather than a parse error.
+            const rawJson = block.jsonFragments.trim() === "" ? "{}" : block.jsonFragments;
             let parsedInput: Record<string, unknown>;
             try {
-              parsedInput = JSON.parse(block.jsonFragments) as Record<string, unknown>;
+              parsedInput = JSON.parse(rawJson) as Record<string, unknown>;
             } catch (err) {
               logger.error("Failed to parse Anthropic tool_use input JSON", {
                 id: block.id,
