@@ -19,6 +19,8 @@ import "@/lib/tools/restart_service";
 import "@/lib/tools/generate_role";
 import "@/lib/tools/rollback";
 
-// Task 13 — destroy tools (added later)
+// Task 13 — destroy tools
+import "@/lib/tools/destroy_vm";
+import "@/lib/tools/stop_service";
 
 export { TOOLS, register, CONFIRM_REQUIRED, toolCatalogueForLLM } from "./registry";

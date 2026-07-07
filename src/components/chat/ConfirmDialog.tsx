@@ -67,12 +67,13 @@ export function ConfirmDialog({ confirmation, onConfirm, onCancel }: ConfirmDial
           {/* Typed confirmation input */}
           {requiresTyping && (
             <div className="space-y-1.5">
-              <p className="text-xs text-white/60">
-                Pour confirmer, saisissez exactement :{" "}
-                <code className="font-mono text-white/80 bg-white/10 px-1 py-0.5 rounded">
-                  {confirmation.requireTyping}
-                </code>
-              </p>
+              <label className="block text-xs text-white/60">
+                Tapez{" "}
+                <span className="font-mono text-white/80">
+                  «&nbsp;{confirmation.requireTyping}&nbsp;»
+                </span>{" "}
+                pour confirmer
+              </label>
               <input
                 type="text"
                 value={typed}

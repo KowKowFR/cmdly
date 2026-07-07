@@ -39,6 +39,8 @@ export function register(tool: Tool): void {
 export const CONFIRM_REQUIRED = new Set<string>([
   "restart_service",
   "rollback",
+  "destroy_vm",
+  "stop_service",
 ]);
 
 // ─── LLM catalogue ───────────────────────────────────────────────────────────
