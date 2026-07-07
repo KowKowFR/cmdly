@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { toast } from "sonner";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -60,14 +60,14 @@ export function useChat(initialConversationId?: string): UseChatReturn {
 
   const esRef = useRef<EventSource | null>(null);
 
-  // Clean up EventSource on unmount
-  // (called inline — no useEffect needed in the hook itself; the component should
-  //  call startNewConversation or rely on the ES closing on done/error events)
-
   const closeES = useCallback(() => {
     esRef.current?.close();
     esRef.current = null;
   }, []);
+
+  // Close the EventSource when the consuming component unmounts so we don't
+  // leak a live SSE connection on navigation or React strict-mode double-mount.
+  useEffect(() => () => { closeES(); }, [closeES]);
 
   const sendMessage = useCallback(
     async (text: string) => {

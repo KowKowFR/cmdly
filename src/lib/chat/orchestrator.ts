@@ -1,4 +1,5 @@
 import { randomUUID } from "crypto";
+import { z } from "zod";
 import { db } from "@/lib/db";
 import { messages as messagesTable } from "@/lib/db/schema";
 import { eq, asc } from "drizzle-orm";
@@ -8,6 +9,16 @@ import { storePendingConfirmation } from "@/lib/chat/runStore";
 import { logger } from "@/lib/logger";
 import type { ExecutionContext } from "@/types/tools";
 import type { LLMProvider, LLMMessage, LLMToolCall } from "@/types/llm";
+
+// ─── Runtime validation schema for persisted toolCalls JSON ───────────────────
+
+const toolCallSchema = z.array(
+  z.object({
+    id: z.string(),
+    name: z.string(),
+    arguments: z.record(z.string(), z.unknown()),
+  })
+);
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -77,8 +88,15 @@ const defaultLoadHistory: LoadHistoryFn = async (conversationId) => {
       };
     }
     if (row.role === "assistant") {
-      const toolCalls = row.toolCalls as LLMToolCall[] | null | undefined;
-      if (toolCalls && toolCalls.length > 0) {
+      const parsed = toolCallSchema.safeParse(row.toolCalls);
+      const toolCalls: LLMToolCall[] = parsed.success ? parsed.data : [];
+      if (!parsed.success && row.toolCalls != null) {
+        logger.warn("orchestrator: malformed toolCalls in DB, treating as empty", {
+          conversationId,
+          error: parsed.error.message,
+        });
+      }
+      if (toolCalls.length > 0) {
         return {
           role: "assistant",
           content: row.content || null,

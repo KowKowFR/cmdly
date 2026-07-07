@@ -26,7 +26,11 @@ export interface PendingConfirmation {
 
 // ─── In-memory stores ─────────────────────────────────────────────────────────
 
-const TTL_MS = 60_000;
+/** TTL for stream run entries — short, only needed until the SSE client connects. */
+const RUN_TTL_MS = 60_000;
+
+/** TTL for pending confirmation entries — longer to allow human deliberation. */
+const CONFIRM_TTL_MS = 300_000;
 
 const runs = new Map<string, RunEntry>();
 const pendingConfirmations = new Map<string, PendingConfirmationEntry>();
@@ -36,10 +40,10 @@ const pendingConfirmations = new Map<string, PendingConfirmationEntry>();
 function cleanup(): void {
   const now = Date.now();
   for (const [key, entry] of runs) {
-    if (now - entry.createdAt > TTL_MS) runs.delete(key);
+    if (now - entry.createdAt > RUN_TTL_MS) runs.delete(key);
   }
   for (const [key, entry] of pendingConfirmations) {
-    if (now - entry.createdAt > TTL_MS) pendingConfirmations.delete(key);
+    if (now - entry.createdAt > CONFIRM_TTL_MS) pendingConfirmations.delete(key);
   }
 }
 
@@ -75,6 +79,11 @@ export function createRun(data: {
 export function takeRun(streamId: string): Omit<RunEntry, "createdAt"> | undefined {
   const entry = runs.get(streamId);
   if (!entry) return undefined;
+  // Enforce TTL on read — regardless of when the periodic cleanup last ran
+  if (Date.now() - entry.createdAt > RUN_TTL_MS) {
+    runs.delete(streamId);
+    return undefined;
+  }
   runs.delete(streamId);
   return { userId: entry.userId, conversationId: entry.conversationId, message: entry.message };
 }
@@ -105,6 +114,11 @@ export function takePendingConfirmation(
   const key = `${conversationId}:${toolCallId}`;
   const entry = pendingConfirmations.get(key);
   if (!entry) return undefined;
+  // Enforce TTL on read — regardless of when the periodic cleanup last ran
+  if (Date.now() - entry.createdAt > CONFIRM_TTL_MS) {
+    pendingConfirmations.delete(key);
+    return undefined;
+  }
   pendingConfirmations.delete(key);
   return {
     name: entry.name,

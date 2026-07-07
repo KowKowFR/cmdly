@@ -54,8 +54,9 @@ export async function POST(req: Request): Promise<Response> {
     return Response.json({ error: "Accès refusé" }, { status: 403 });
   }
 
-  // Verify typed confirmation if the tool requires it
-  if (pending.requireTyping !== undefined) {
+  // Verify typed confirmation if the tool requires it.
+  // Guard is truthy-check so an empty-string requireTyping is treated as absent.
+  if (pending.requireTyping) {
     if (typeof typed !== "string" || typed !== pending.requireTyping) {
       return Response.json(
         { error: "La confirmation saisie ne correspond pas" },
