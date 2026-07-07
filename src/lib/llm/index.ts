@@ -1,6 +1,8 @@
 import type { InfrastructureConfig } from "../config";
 import type { LLMProvider } from "../../types/llm";
 import { OpenAIProvider } from "./openai";
+import { AnthropicProvider } from "./anthropic";
+import { OllamaProvider } from "./ollama";
 
 export type { LLMProvider };
 export type { LLMMessage, LLMTool, LLMToolCall, LLMToolResult, LLMEvent } from "../../types/llm";
@@ -8,9 +10,6 @@ export type { LLMMessage, LLMTool, LLMToolCall, LLMToolResult, LLMEvent } from "
 /**
  * Returns the LLMProvider implementation for the given provider name.
  * Reads API keys and model from the decrypted InfrastructureConfig.
- *
- * Note: Only "openai" is implemented in this task.
- * "anthropic" and "ollama" are wired in Task 17.
  */
 export function getProvider(
   name: "openai" | "anthropic" | "ollama",
@@ -21,9 +20,9 @@ export function getProvider(
       return new OpenAIProvider(cfg.openaiApiKey);
 
     case "anthropic":
-      throw new Error("provider not yet implemented: anthropic");
+      return new AnthropicProvider(cfg.anthropicApiKey, cfg.anthropicModel || undefined);
 
     case "ollama":
-      throw new Error("provider not yet implemented: ollama");
+      return new OllamaProvider(cfg.ollamaBaseUrl);
   }
 }
