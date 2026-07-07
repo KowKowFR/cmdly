@@ -139,13 +139,21 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
  * - Doubles any internal double-quote characters.
  */
 function escapeField(value: string): string {
-  const needsQuoting =
-    value.includes('"') ||
-    value.includes(",") ||
-    value.includes("\n") ||
-    value.includes("\r");
+  // Neutralize spreadsheet formula injection: a field whose first character is
+  // one of = + - @ (or a leading tab/CR) is executed as a formula by Excel/Sheets
+  // regardless of quoting. Prefix with a single quote to force text.
+  let safe = value;
+  if (/^[=+\-@\t\r]/.test(safe)) {
+    safe = `'${safe}`;
+  }
 
-  if (!needsQuoting) return value;
+  const needsQuoting =
+    safe.includes('"') ||
+    safe.includes(",") ||
+    safe.includes("\n") ||
+    safe.includes("\r");
+
+  if (!needsQuoting) return safe;
   // Double internal quotes, then wrap in quotes
-  return `"${value.replace(/"/g, '""')}"`;
+  return `"${safe.replace(/"/g, '""')}"`;
 }
