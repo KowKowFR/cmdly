@@ -73,7 +73,7 @@ const step7Schema = z.discriminatedUnion("defaultLlmProvider", [
   z.object({
     defaultLlmProvider: z.literal("anthropic"),
     anthropicApiKey: nonempty("Clé API Anthropic requise"),
-    anthropicModel: z.string().min(1).default("claude-opus-4-5"),
+    anthropicModel: z.string().min(1).default("claude-opus-4-8"),
   }),
   z.object({
     defaultLlmProvider: z.literal("ollama"),

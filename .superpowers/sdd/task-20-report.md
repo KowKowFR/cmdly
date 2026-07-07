@@ -118,6 +118,63 @@ npx tsx --test <22 test files>
 
 - **Password in seed output**: The generated password is printed once to stdout. On a CI/CD runner, this could appear in logs. Operators should pipe stdout to a secure location or use `SEED_ADMIN_PASSWORD` env var to avoid generation.
 - **install.sh `/root/.cmdly_pgpass`**: The Postgres password is cached in `/root/.cmdly_pgpass` for idempotency. On re-runs this is read back rather than regenerated. This file is chmod 600.
-- **`CMDLY_REPO_URL` placeholder**: The install.sh contains a placeholder URL (`https://github.com/PLACEHOLDER/cmdly.git`) that must be replaced before publishing.
-- **systemd unit re-start**: The installer does `systemctl restart cmdly` even on re-run (service was already enabled). An improvement would be `systemctl reload-or-restart` or checking if config changed.
-- **`npm ci --omit=dev`** in install.sh: production installs omit devDependencies. If `drizzle-kit` or `tsx` are needed post-install (for migrations), they should move to `dependencies`. Currently `drizzle-kit` is in devDependencies — migrations in install.sh use `npx drizzle-kit` which downloads it if missing. Fine for install, but worth noting.
+- **`CMDLY_REPO_URL` placeholder**: The install.sh contains a placeholder URL (`https://github.com/PLACEHOLDER/cmdly.git`) that must be replaced before publishing. Comment in the script makes this clear.
+
+---
+
+## Task 20 — Reviewer-Identified Bugs Fixed (commit 7b49fb9)
+
+### C1 — npm ci no longer strips devDependencies
+`npm ci --omit=dev` → `npm ci` (same for the `npm install` fallback path). `next build` needs tailwindcss / @tailwindcss/postcss / typescript; `drizzle-kit migrate` needs drizzle-kit. Both are devDependencies.
+
+### C2 — .env written BEFORE build
+Step 7 (write .env) and Step 8 (npm ci + build) were swapped. New order: clone → write .env → npm ci → npm run build → migrate → systemd → print URL. `NEXT_PUBLIC_APP_URL` IS referenced in `src/lib/auth/client.ts` so it must be embedded at build time. `.env`-exists guard (never overwrite / never regenerate secret) preserved.
+
+### I1 — PG_PASSWORD no longer exposed in ps output
+Replaced `su -c "psql -c \"CREATE ROLE ... PASSWORD '${PG_PASSWORD}'\""` with a temp-file approach: SQL written to a `mktemp` file (chmod 600, chown postgres), then `su - postgres -c "psql -f '<file>'"`. Temp file is removed after. Password never appears as a CLI argument.
+
+### I2 — No hard-restart of a live service on re-run
+`systemctl restart cmdly` → conditional: `systemctl is-active --quiet cmdly` → `try-restart` if running, else `start`. Combined with `daemon-reload` + `enable` that run unconditionally.
+
+### M1 — .env mode 600
+`chmod 640` → `chmod 600` (owner-only; systemd reads it as root, group read not needed).
+
+### M3 — seed.ts inserts wrapped in transaction
+Both `db.insert(schema.users)` and `db.insert(schema.accounts)` are now inside `db.transaction(async (tx) => { ... })` using `tx` for both inserts. Prevents orphan user with no credential account on crash. TypeScript compiles cleanly; idempotent path verified (`npx tsx scripts/seed.ts` → "Admin user(s) already exist. Nothing to do.").
+
+### M5 — Portable version parsing (awk/cut replaces grep -oP)
+- PostgreSQL: `psql --version | grep -oP '\d+' | head -1` → `psql --version | awk '{print $3}' | cut -d'.' -f1`
+- Terraform log: `terraform version -json | grep -oP '"terraform_version":"\K[^"]+'` → `terraform version | awk 'NR==1{print $2}'`
+Both are POSIX-portable; no PCRE dependency.
+
+### shellcheck result
+`bash -n scripts/install.sh` → OK  
+`shellcheck scripts/install.sh` → CLEAN (0 warnings)
+
+---
+
+## Task 20 (addendum) — tsc --noEmit Typecheck Cleanup (commit 0cb14e6)
+
+**Goal:** Make `npx tsc --noEmit` fully clean across 22 test files (was 28 errors; product code already clean).
+
+### Categories fixed
+
+| Category | Error | Fix applied |
+|---|---|---|
+| TS2532 (noUncheckedIndexedAccess) | `onboardingSchemas[N]` possibly undefined | Added `!` to all 7 indexed schema accesses in `onboarding.test.ts` |
+| TS18046 result.data unknown | Zod `safeParse` result.data is `unknown` when schema typed as base class | Cast `result.data` to specific shape at 3 call sites |
+| TS2532 Buffer indexed access | `bad[bad.length - 1]` possibly undefined in `crypto.test.ts` | Extracted to `const lastByte`, narrowed with `assert.ok(lastByte !== undefined)` |
+| TS2344 Function constraint | `Parameters<typeof ProxmoxClient.prototype.constructor>` — `Function` doesn't satisfy `(...args: any) => any` | Changed to `ConstructorParameters<typeof ProxmoxClient>[0]` in `proxmox.test.ts` |
+| TS2339 property on never | `destroyCalledWith` narrowed to `null` by TS control-flow after closure assignment, making `!` produce `never` | Captured as typed const after `assert.ok` null check in `destroy_vm.test.ts` |
+
+### Files changed
+- `src/lib/crypto.test.ts`
+- `src/lib/proxmox.test.ts`
+- `src/lib/tools/destroy_vm.test.ts`
+- `src/lib/validation/onboarding.test.ts`
+
+### Results
+- `npx tsc --noEmit` → **0 errors** (exit 0)
+- `npx tsx --test <22 test files>` → **146 pass, 0 fail**
+- `npm run build` → **clean** (product code untouched)
+- No `any`, no `@ts-ignore`, no `@ts-expect-error` added

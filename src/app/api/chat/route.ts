@@ -58,7 +58,7 @@ export async function POST(req: Request): Promise<Response> {
         provider === "openai"
           ? config.openaiModel || "gpt-4o"
           : provider === "anthropic"
-          ? config.anthropicModel || "claude-3-5-sonnet-20241022"
+          ? config.anthropicModel || "claude-opus-4-8"
           : config.ollamaModel || "llama3";
 
       conversationId = randomUUID();

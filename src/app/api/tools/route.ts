@@ -77,7 +77,9 @@ export async function POST(req: Request): Promise<Response> {
   const ctx: ExecutionContext = {
     userId: session.user.id,
     userRole,
-    ipAddress: req.headers.get("x-forwarded-for") ?? "unknown",
+    // Take only the first hop of x-forwarded-for (the client behind our single
+    // trusted reverse proxy); the rest of the header is client-influenced.
+    ipAddress: req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown",
     config,
   };
 

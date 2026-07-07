@@ -140,7 +140,7 @@ export function Step11Summary({ formData, updateData: _u, errors: _e, onJumpToSt
               ]
             : formData.defaultLlmProvider === "anthropic"
             ? [
-                { label: "Modèle", value: mask(formData.anthropicModel ?? "claude-opus-4-5") },
+                { label: "Modèle", value: mask(formData.anthropicModel ?? "claude-opus-4-8") },
                 { label: "Clé API", value: maskSecret(formData.anthropicApiKey) },
               ]
             : [

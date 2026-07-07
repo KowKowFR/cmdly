@@ -117,8 +117,8 @@ export function Step07LLM({ formData, updateData, errors }: StepProps) {
             <Input
               id="anthropicModel"
               type="text"
-              placeholder="claude-opus-4-5"
-              value={String(formData.anthropicModel ?? "claude-opus-4-5")}
+              placeholder="claude-opus-4-8"
+              value={String(formData.anthropicModel ?? "claude-opus-4-8")}
               onChange={(e) => updateData({ anthropicModel: e.target.value })}
               className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
             />
