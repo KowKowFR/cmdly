@@ -2,13 +2,22 @@ import { NextRequest, NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
-import { saveConfig } from "@/lib/config";
+import { saveConfig, isOnboardingCompleted, type InfrastructureConfig } from "@/lib/config";
 import { onboardingSchemas } from "@/lib/validation/onboarding";
 import { auth } from "@/lib/auth/config";
 import { logger } from "@/lib/logger";
 
 export async function POST(request: NextRequest) {
   try {
+    // ── Onboarding completion guard ────────────────────────────────────────────
+    // Once onboarding is done, no step may be processed. This closes the
+    // privilege-escalation path where an authenticated user could re-POST step 2
+    // to promote arbitrary accounts after setup is complete.
+    if (await isOnboardingCompleted()) {
+      logger.warn("Onboarding POST rejected: onboarding already completed");
+      return NextResponse.json({ ok: false, error: "Onboarding already completed" }, { status: 403 });
+    }
+
     const body = await request.json() as { step: number; data: unknown };
     const { step, data } = body;
 
@@ -54,6 +63,18 @@ export async function POST(request: NextRequest) {
     // ── Step-specific side-effects ─────────────────────────────────────────────
 
     if (step === 2) {
+      // Defense in depth: only promote if ZERO admins exist, regardless of session.
+      const existingAdmins = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(eq(users.role, "admin"))
+        .limit(1);
+
+      if (existingAdmins.length > 0) {
+        logger.warn("Step 2: admin already exists, promotion blocked");
+        return NextResponse.json({ ok: false, error: "Admin already exists" }, { status: 403 });
+      }
+
       // Step 2: set the admin role on the user that was just created via authClient.signUp
       const { email } = result.data as { email: string; password: string; name: string };
       const userRows = await db
@@ -83,8 +104,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Steps 3-11: save config (secrets are encrypted inside saveConfig)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const configData = result.data as any;
+    const configData = result.data as Partial<InfrastructureConfig>;
 
     // Omit non-config fields that Zod may have added (none expected)
     await saveConfig(configData);

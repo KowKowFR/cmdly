@@ -47,17 +47,16 @@ async function testProxmox(data: Record<string, unknown>) {
   }
 
   try {
-    // Use Node.js https agent to allow self-signed TLS
-    const https = await import("https");
-    const agent = new https.Agent({ rejectUnauthorized: false });
+    // Use undici with a custom Agent to allow self-signed TLS on Proxmox hosts
+    const { Agent, fetch: undiciFetch } = await import("undici");
+    const dispatcher = new Agent({ connect: { rejectUnauthorized: false } });
     const url = `https://${host}:${port}/api2/json/version`;
     const token = `PVEAPIToken=${user}!${tokenId}=${secret}`;
 
-    const response = await fetch(url, {
+    const response = await undiciFetch(url, {
       method: "GET",
       headers: { Authorization: token },
-      // @ts-expect-error — Node.js fetch accepts an agent option
-      agent,
+      dispatcher,
       signal: AbortSignal.timeout(8000),
     });
 
