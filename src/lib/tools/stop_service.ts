@@ -13,8 +13,31 @@ import { z } from "zod";
 import type { Tool } from "@/types/tools";
 import { register } from "./registry";
 import { runCommand } from "@/lib/ssh";
+import type { CommandResult } from "@/lib/ssh";
 import { vmHostSchema } from "./_shared";
 import { logger } from "@/lib/logger";
+import type { InfrastructureConfig } from "@/lib/config";
+
+// ─── Injectable facade ─────────────────────────────────────────────────────────
+
+type SshConfig = Pick<
+  InfrastructureConfig,
+  "bastionHost" | "bastionPort" | "bastionUser" | "sshKeyPath"
+>;
+
+type RunCommandFn = (
+  cfg: SshConfig,
+  host: string,
+  command: string,
+  args: string[]
+) => Promise<CommandResult>;
+
+let _runCommand: RunCommandFn = runCommand;
+
+/** Override the SSH runCommand function — for unit tests only. */
+export function setRunCommandFn(f: RunCommandFn): void {
+  _runCommand = f;
+}
 
 // ─── Parameter schema ─────────────────────────────────────────────────────────
 
@@ -50,7 +73,7 @@ export const stopService: Tool = {
     try {
       // node-ssh exec() shell-escapes each element in the args array.
       // serviceName regex ensures safe chars; exec() provides the escaping layer.
-      const result = await runCommand(ctx.config, vmHost, "systemctl", [
+      const result = await _runCommand(ctx.config, vmHost, "systemctl", [
         "stop",
         serviceName,
       ]);

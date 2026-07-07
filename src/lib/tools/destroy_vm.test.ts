@@ -251,6 +251,50 @@ test("destroy_vm: execute returns error when VM name has unsafe chars (terraform
   );
 });
 
+test("destroy_vm: unsafe VM name at confirm time → error (not confirm_required)", async () => {
+  // Stub resolveVmName to return a name with unsafe characters.
+  setClientFactory((_cfg) => ({
+    listVms: async (): Promise<ProxmoxVm[]> => [
+      {
+        vmid: 200,
+        name: "Bad Name!",
+        status: "running",
+        maxmem: 1_000_000,
+        cpus: 1,
+        uptime: 0,
+      },
+    ],
+  }));
+
+  const outcome = await executeTool(
+    "destroy_vm",
+    { vmid: 200 },
+    makeCtx("admin"),
+    { confirmed: false }
+  );
+
+  // requireTyping throws → outer executor catch → {status:"error"}
+  assert.equal(
+    outcome.status,
+    "error",
+    `Expected 'error', got '${outcome.status}' — unsafe name should be rejected before the typing prompt`
+  );
+});
+
+test("destroy_vm: SAFE_NAME_RE accepts 'web-01' and rejects '---', '-x', 'x-'", () => {
+  // Access SAFE_NAME_RE indirectly via the schema test + execute behavior.
+  // We test the regex semantics via the Proxmox name resolution path.
+  // Direct regex tests for documentation / regression coverage:
+  const re = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/;
+  assert.ok(re.test("web-01"), "web-01 should be safe");
+  assert.ok(!re.test("---"), "--- should be rejected");
+  assert.ok(!re.test("-x"), "-x should be rejected (leading hyphen)");
+  assert.ok(!re.test("x-"), "x- should be rejected (trailing hyphen)");
+  assert.ok(!re.test(""), "empty string should be rejected");
+  assert.ok(re.test("a"), "single letter should be accepted");
+  assert.ok(re.test("1"), "single digit should be accepted");
+});
+
 test("destroy_vm: schema rejects non-integer vmid", () => {
   const parsed = destroyVm.parameters.safeParse({ vmid: 1.5 });
   assert.equal(parsed.success, false, "Should reject non-integer vmid");

@@ -53,8 +53,13 @@ export function setTerraformFacade(f: TerraformFacade): void {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-/** Safe terraform identifier: only lowercase letters, digits, and hyphens. */
-const SAFE_NAME_RE = /^[a-z0-9-]+$/;
+/**
+ * Safe terraform identifier: lowercase letters, digits, and internal hyphens.
+ * Leading/trailing hyphens and all-hyphen names are rejected (invalid Terraform
+ * identifiers). Single-character names (letter or digit) are also accepted via
+ * the `([a-z0-9-]*[a-z0-9])?` group being optional.
+ */
+const SAFE_NAME_RE = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/;
 
 async function resolveVmName(
   vmid: number,
@@ -99,6 +104,18 @@ export const destroyVm: Tool = {
     async requireTyping(params, ctx) {
       const { vmid } = params as DestroyVmParams;
       const name = await resolveVmName(vmid, ctx.config);
+      // Validate before surfacing the typed-confirmation prompt. An unsafe name
+      // can never produce a valid Terraform target, so throw immediately rather
+      // than letting the admin type the name and hit the dead-end in execute().
+      // The executor's outer try/catch converts this throw into {status:"error"}.
+      // Note: the String(vmid) fallback is always digits-only → always safe.
+      if (!SAFE_NAME_RE.test(name)) {
+        throw new Error(
+          `Impossible de détruire la VM #${vmid} (« ${name} ») via CMDLY : ` +
+            `le nom contient des caractères non supportés. ` +
+            `Détruisez-la depuis le dépôt Terraform.`
+        );
+      }
       return name;
     },
   },
