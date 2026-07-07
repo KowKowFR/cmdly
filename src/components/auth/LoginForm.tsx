@@ -10,9 +10,14 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { authClient } from "@/lib/auth/client";
 
-export function LoginForm() {
+interface LoginFormProps {
+  /** When true the form posts to /api/auth/ldap with username/password. */
+  ldapEnabled?: boolean;
+}
+
+export function LoginForm({ ldapEnabled = false }: LoginFormProps) {
   const router = useRouter();
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
@@ -20,21 +25,45 @@ export function LoginForm() {
     e.preventDefault();
     setIsLoading(true);
 
-    await authClient.signIn.email(
-      { email, password, callbackURL: "/" },
-      {
-        onSuccess: () => {
+    if (ldapEnabled) {
+      // ── LDAP path ────────────────────────────────────────────────────────
+      try {
+        const res = await fetch("/api/auth/ldap", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username: identifier, password }),
+        });
+
+        if (res.ok) {
           router.push("/");
           router.refresh();
-        },
-        onError: (ctx) => {
-          toast.error(ctx.error.message ?? "Sign in failed. Please check your credentials.");
+        } else {
+          const data = (await res.json()) as { error?: string };
+          toast.error(data.error ?? "Échec de la connexion. Vérifiez vos identifiants.");
           setIsLoading(false);
+        }
+      } catch {
+        toast.error("Erreur de connexion au serveur.");
+        setIsLoading(false);
+      }
+    } else {
+      // ── Better-auth email/password path ──────────────────────────────────
+      await authClient.signIn.email(
+        { email: identifier, password, callbackURL: "/" },
+        {
+          onSuccess: () => {
+            router.push("/");
+            router.refresh();
+          },
+          onError: (ctx) => {
+            toast.error(ctx.error.message ?? "Sign in failed. Please check your credentials.");
+            setIsLoading(false);
+          },
         },
-      },
-    );
+      );
 
-    setIsLoading(false);
+      setIsLoading(false);
+    }
   }
 
   return (
@@ -47,25 +76,31 @@ export function LoginForm() {
       <Card>
         <CardHeader className="text-center">
           <CardTitle className="text-2xl">CMDLY</CardTitle>
-          <CardDescription>Sign in to your account</CardDescription>
+          <CardDescription>
+            {ldapEnabled ? "Connexion via annuaire LDAP" : "Sign in to your account"}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="identifier">
+                {ldapEnabled ? "Identifiant" : "Email"}
+              </Label>
               <Input
-                id="email"
-                type="email"
-                placeholder="admin@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                id="identifier"
+                type={ldapEnabled ? "text" : "email"}
+                placeholder={ldapEnabled ? "alice" : "admin@example.com"}
+                value={identifier}
+                onChange={(e) => setIdentifier(e.target.value)}
                 required
                 disabled={isLoading}
                 className="focus-visible:ring-ring"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+              <Label htmlFor="password">
+                {ldapEnabled ? "Mot de passe" : "Password"}
+              </Label>
               <Input
                 id="password"
                 type="password"
@@ -78,7 +113,9 @@ export function LoginForm() {
               />
             </div>
             <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? "Signing in…" : "Sign in"}
+              {isLoading
+                ? ldapEnabled ? "Connexion…" : "Signing in…"
+                : ldapEnabled ? "Se connecter" : "Sign in"}
             </Button>
           </form>
         </CardContent>
