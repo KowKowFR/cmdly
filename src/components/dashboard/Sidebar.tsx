@@ -38,7 +38,7 @@ export function Sidebar() {
         onClick={() => setCollapsed((prev) => !prev)}
         aria-label="Toggle navigation"
       >
-        {collapsed ? <X size={18} /> : <Menu size={18} />}
+        {collapsed ? <Menu size={18} /> : <X size={18} />}
       </button>
 
       <aside
