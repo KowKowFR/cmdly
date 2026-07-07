@@ -44,8 +44,14 @@ export interface CommandResult {
  * using `sock`. This avoids direct ssh2 API surface and is fully typed through
  * node-ssh's type declarations.
  */
+/** Subset of InfrastructureConfig that SSH functions actually read. */
+type SshConfig = Pick<
+  InfrastructureConfig,
+  "bastionHost" | "bastionPort" | "bastionUser" | "sshKeyPath"
+>;
+
 async function connectViaBastion(
-  cfg: InfrastructureConfig,
+  cfg: SshConfig,
   targetHost: string,
 ): Promise<{ bastion: NodeSSH; target: NodeSSH }> {
   const bastionPort = cfg.bastionPort ?? 22;
@@ -70,8 +76,7 @@ async function connectViaBastion(
   //    duplex stream — the Channel returned by forwardOut satisfies this.
   const target = new NodeSSH();
   await target.connect({
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    sock: channel as any, // Channel is a Duplex; cast needed due to ssh2 lacking @types
+    sock: channel as unknown as import("node:stream").Duplex, // ssh2 Channel is a Duplex; no @types for ssh2
     username: cfg.bastionUser,
     privateKeyPath: cfg.sshKeyPath,
     readyTimeout: 10_000,
@@ -89,7 +94,7 @@ async function connectViaBastion(
  * by node-ssh's `exec` before being sent to the SSH channel.
  */
 export async function runCommand(
-  cfg: InfrastructureConfig,
+  cfg: SshConfig,
   host: string,
   command: string,
   args: string[],
@@ -115,7 +120,7 @@ export async function runCommand(
  * Returns `{ ok, message }` and never throws.
  */
 export async function testBastionConnection(
-  cfg: InfrastructureConfig,
+  cfg: SshConfig,
 ): Promise<{ ok: boolean; message: string }> {
   if (!cfg.bastionHost) {
     return { ok: false, message: "bastionHost non configuré" };

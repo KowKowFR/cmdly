@@ -3,7 +3,6 @@ import { logger } from "@/lib/logger";
 import { ZabbixClient } from "@/lib/zabbix";
 import { WazuhClient } from "@/lib/wazuh";
 import { testBastionConnection } from "@/lib/ssh";
-import type { InfrastructureConfig } from "@/lib/config";
 
 type TestTarget = "proxmox" | "ssh" | "llm" | "zabbix" | "wazuh";
 
@@ -166,13 +165,13 @@ async function testSsh(data: Record<string, unknown>) {
   }
 
   try {
-    // Build a minimal config for the SSH test
+    // Build a minimal config for the SSH test — typed precisely to what testBastionConnection needs
     const cfg = {
       bastionHost,
       bastionPort,
       bastionUser,
       sshKeyPath,
-    } as unknown as InfrastructureConfig;
+    };
 
     const result = await testBastionConnection(cfg);
     return NextResponse.json(result);
@@ -194,11 +193,12 @@ async function testZabbix(data: Record<string, unknown>) {
   }
 
   try {
+    // Build a minimal config — typed precisely to what ZabbixClient constructor needs
     const cfg = {
       zabbixUrl,
       zabbixUser,
       zabbixPassword,
-    } as unknown as InfrastructureConfig;
+    };
 
     const client = new ZabbixClient(cfg);
     const result = await client.testConnection();
@@ -221,11 +221,12 @@ async function testWazuh(data: Record<string, unknown>) {
   }
 
   try {
+    // Build a minimal config — typed precisely to what WazuhClient constructor needs
     const cfg = {
       wazuhUrl,
       wazuhUser,
       wazuhPassword,
-    } as unknown as InfrastructureConfig;
+    };
 
     const client = new WazuhClient(cfg);
     const result = await client.testConnection();

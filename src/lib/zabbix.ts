@@ -47,7 +47,10 @@ export class ZabbixClient {
   /** Cached auth token from user.login */
   private authToken: string | null = null;
 
-  constructor(cfg: InfrastructureConfig, fetchOverride?: FetchFn) {
+  constructor(
+    cfg: Pick<InfrastructureConfig, "zabbixUrl" | "zabbixUser" | "zabbixPassword">,
+    fetchOverride?: FetchFn,
+  ) {
     this.apiUrl = `${cfg.zabbixUrl.replace(/\/$/, "")}/api_jsonrpc.php`;
     this.user = cfg.zabbixUser;
     this.password = cfg.zabbixPassword;
@@ -55,8 +58,8 @@ export class ZabbixClient {
     if (fetchOverride) {
       this.fetchFn = fetchOverride;
     } else {
-      // Zabbix often uses standard TLS; use native fetch as default.
-      // If self-signed TLS is needed, pass an undici-backed fetchOverride.
+      // Zabbix uses native fetch by default. Pass an undici-backed fetchOverride
+      // to the constructor for self-signed-TLS Zabbix deployments.
       this.fetchFn = (url: string, init: object) =>
         fetch(url, init as RequestInit) as Promise<{
           ok: boolean;

@@ -47,7 +47,10 @@ export class WazuhClient {
   private readonly authHeader: string;
   private readonly fetchFn: FetchFn;
 
-  constructor(cfg: InfrastructureConfig, fetchOverride?: FetchFn) {
+  constructor(
+    cfg: Pick<InfrastructureConfig, "wazuhUrl" | "wazuhUser" | "wazuhPassword">,
+    fetchOverride?: FetchFn,
+  ) {
     this.baseUrl = cfg.wazuhUrl.replace(/\/$/, "");
     // Wazuh Indexer uses HTTP Basic auth
     const encoded = Buffer.from(`${cfg.wazuhUser}:${cfg.wazuhPassword}`).toString("base64");

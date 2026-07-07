@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { Tool } from "@/types/tools";
 import { register } from "./registry";
 import { runCommand } from "@/lib/ssh";
+import { vmHostSchema } from "./_shared";
 
 export const serviceStatus: Tool = {
   name: "service_status",
@@ -10,7 +11,7 @@ export const serviceStatus: Tool = {
   category: "read",
   requiredRole: "viewer",
   parameters: z.object({
-    vmHost: z.string().min(1),
+    vmHost: vmHostSchema,
     // Restrict serviceName to safe characters only (validated here + Zod schema).
     // This prevents shell injection via the systemctl arg.
     serviceName: z

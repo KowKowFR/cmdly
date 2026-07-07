@@ -8,7 +8,6 @@ const { toolCatalogueForLLM } = await import("./registry.ts");
 test("6 read tools registered for viewer role", () => {
   const tools = toolCatalogueForLLM("viewer");
   const names = tools.map((t) => t.name);
-  console.log("Registered tools:", names.join(", "));
 
   assert.equal(tools.length, 6, `Expected 6 tools, got ${tools.length}: ${names.join(", ")}`);
 

@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { Tool } from "@/types/tools";
 import { register } from "./registry";
 import { runCommand } from "@/lib/ssh";
+import { vmHostSchema } from "./_shared";
 
 export const analyzeLog: Tool = {
   name: "analyze_log",
@@ -10,7 +11,7 @@ export const analyzeLog: Tool = {
   category: "read",
   requiredRole: "viewer",
   parameters: z.object({
-    vmHost: z.string().min(1),
+    vmHost: vmHostSchema,
     /** Must be an absolute path — enforced by Zod and rejected on empty/null-byte. */
     logPath: z.string().startsWith("/").min(2),
     /** Searched as a literal fixed string (grep -F), not a regex. */
