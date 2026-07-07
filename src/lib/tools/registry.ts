@@ -36,7 +36,10 @@ export function register(tool: Tool): void {
 //   CONFIRM_REQUIRED.add("destroy_vm");
 //   CONFIRM_REQUIRED.add("stop_service");
 
-export const CONFIRM_REQUIRED = new Set<string>([]);
+export const CONFIRM_REQUIRED = new Set<string>([
+  "restart_service",
+  "rollback",
+]);
 
 // ─── LLM catalogue ───────────────────────────────────────────────────────────
 
