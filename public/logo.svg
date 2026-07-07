@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 40" fill="none" role="img" aria-label="CMDLY">
+  <defs>
+    <linearGradient id="cmdly-grad" x1="0" y1="0" x2="160" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#1A365D"/>
+      <stop offset="100%" stop-color="#DD6B20"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Terminal-bracket icon -->
+  <g transform="translate(4,8)">
+    <!-- Left bracket -->
+    <polyline points="0,12 6,0 6,0" stroke="#DD6B20" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    <polyline points="0,12 6,24" stroke="#DD6B20" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    <!-- Chevron prompt -->
+    <polyline points="10,8 16,12 10,16" stroke="#1A365D" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  </g>
+
+  <!-- Wordmark -->
+  <text
+    x="30"
+    y="27"
+    font-family="'Inter', 'Helvetica Neue', Arial, sans-serif"
+    font-size="18"
+    font-weight="700"
+    letter-spacing="2"
+    fill="url(#cmdly-grad)"
+  >CMDLY</text>
+</svg>
