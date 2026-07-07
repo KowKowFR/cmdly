@@ -9,7 +9,7 @@ import assert from "node:assert/strict";
 
 // Dynamic imports — env vars must be set first
 const { db } = await import("@/lib/db");
-const { users, auditLog } = await import("@/lib/db/schema");
+const { users, auditLog, rateLimits } = await import("@/lib/db/schema");
 const { eq, and, like } = await import("drizzle-orm");
 const { z } = await import("zod");
 const { TOOLS, CONFIRM_REQUIRED } = await import("@/lib/tools/registry");
@@ -254,15 +254,14 @@ test("tool execute throws → error outcome + tool_call_failed audit, executeToo
     const ctx = makeCtx(TEST_USER_ID);
     let outcome: Awaited<ReturnType<typeof executeTool>>;
 
-    // Must not throw
-    assert.doesNotThrow(async () => {
+    // Must not reject (async-safe replacement for doesNotThrow on an async fn)
+    await assert.doesNotReject(async () => {
       outcome = await executeTool(throwingTool.name, {}, ctx);
     });
 
-    outcome = await executeTool(throwingTool.name, {}, ctx);
-    assert.equal(outcome.status, "error");
-    if (outcome.status === "error") {
-      assert.ok(outcome.reason.includes("boom from tool"));
+    assert.equal(outcome!.status, "error");
+    if (outcome!.status === "error") {
+      assert.ok(outcome!.reason.includes("boom from tool"));
     }
 
     const failed = await getAuditRows(TEST_USER_ID, throwingTool.name, "tool_call_failed");
@@ -285,5 +284,68 @@ test("bad params (Zod fail) → error mentioning invalid field", async () => {
         `Expected reason to mention field 'q', got: ${outcome.reason}`
       );
     }
+  });
+});
+
+test("destroy + CONFIRM_REQUIRED: unconfirmed consumes NO rate slot; confirmed retry succeeds", async () => {
+  // This test verifies Fix 2: rate-limit runs AFTER the confirmation gate.
+  // destroy limit is 1/min.  If the unconfirmed call burned the slot the
+  // confirmed retry would be rate-limit-denied.
+  let executeCalled = false;
+  const destroyConfirmTool: Tool = {
+    name: `fake_destroy_confirm_${process.pid}`,
+    description: "Fake destroy tool that requires confirmation",
+    category: "destroy",
+    requiredRole: "admin",
+    parameters: z.object({ id: z.string() }),
+    execute: async (_p, _ctx) => {
+      executeCalled = true;
+      return { success: true, humanReadable: "destroyed" };
+    },
+  };
+
+  await withFakeTool(destroyConfirmTool, async () => {
+    await withConfirmRequired(destroyConfirmTool.name, async () => {
+      const ctx = makeCtx(TEST_USER_ID, "admin");
+
+      // Step 1 — unconfirmed: must return confirm_required without consuming a rate slot
+      const outcome1 = await executeTool(
+        destroyConfirmTool.name,
+        { id: "vm-1" },
+        ctx
+      );
+      assert.equal(
+        outcome1.status,
+        "confirm_required",
+        "unconfirmed call should return confirm_required"
+      );
+      assert.equal(executeCalled, false, "execute must NOT be called on unconfirmed");
+
+      // Step 2 — confirmed: must pass rate-limit and execute successfully.
+      // destroy limit is 1/min; if step 1 burned it this would be "error".
+      const outcome2 = await executeTool(
+        destroyConfirmTool.name,
+        { id: "vm-1" },
+        ctx,
+        { confirmed: true }
+      );
+      assert.equal(
+        outcome2.status,
+        "success",
+        `confirmed retry should succeed — if rate-limited, the unconfirmed call illegally consumed the slot. got: ${outcome2.status}${outcome2.status === "error" ? ` (${(outcome2 as { reason: string }).reason})` : ""}`
+      );
+      assert.equal(executeCalled, true, "execute should be called on confirmed retry");
+
+      // Cleanup: remove the destroy rate-limit row so subsequent test runs in
+      // the same minute aren't blocked.  (User cascade handles audit rows.)
+      await db
+        .delete(rateLimits)
+        .where(
+          and(
+            eq(rateLimits.userId, TEST_USER_ID),
+            eq(rateLimits.action, "destroy")
+          )
+        );
+    });
   });
 });

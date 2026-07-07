@@ -2,7 +2,6 @@ import { z } from "zod";
 import type { Tool, Role } from "@/types/tools";
 import type { LLMTool } from "@/types/llm";
 import { canExecuteTool } from "@/lib/auth/permissions";
-import type { UserRole } from "@/lib/auth/permissions";
 
 // ─── Tool registry ────────────────────────────────────────────────────────────
 //
@@ -48,7 +47,7 @@ export const CONFIRM_REQUIRED = new Set<string>([]);
  */
 export function toolCatalogueForLLM(role: Role): LLMTool[] {
   return Object.values(TOOLS)
-    .filter((tool) => canExecuteTool(role as UserRole, tool.requiredRole as UserRole))
+    .filter((tool) => canExecuteTool(role, tool.requiredRole))
     .map((tool) => ({
       name: tool.name,
       description: tool.description,

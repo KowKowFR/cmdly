@@ -1,10 +1,12 @@
 import type { z } from "zod";
 import type { InfrastructureConfig } from "@/lib/config";
+import type { UserRole } from "@/lib/auth/permissions";
 
 // ─── Core categories and roles ────────────────────────────────────────────────
 
 export type ToolCategory = "read" | "modify" | "destroy";
-export type Role = "viewer" | "operator" | "admin";
+/** Single source of truth: re-exported from permissions.  Role === UserRole. */
+export type Role = UserRole;
 
 // ─── Execution context passed to every tool ───────────────────────────────────
 
