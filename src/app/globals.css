@@ -1,0 +1,29 @@
+@import "tailwindcss";
+
+@theme {
+  /* CMDLY palette — PRA (Bac+4 Architecte Cybersécurité) */
+
+  /* Backgrounds */
+  --color-background: #0A0A0B;
+  --color-surface: #111113;
+  --color-border: #27272A;
+
+  /* Text */
+  --color-foreground: #EDEDED;
+  --color-muted: #A1A1AA;
+
+  /* Brand */
+  --color-primary: #1A365D;
+  --color-accent: #DD6B20;
+
+  /* Semantic */
+  --color-success: #22C55E;
+  --color-warning: #F59E0B;
+  --color-danger: #EF4444;
+}
+
+body {
+  background: var(--color-background);
+  color: var(--color-foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
