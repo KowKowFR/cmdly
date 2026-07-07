@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { logger } from "@/lib/logger";
+import { ZabbixClient } from "@/lib/zabbix";
+import { WazuhClient } from "@/lib/wazuh";
+import { testBastionConnection } from "@/lib/ssh";
+import type { InfrastructureConfig } from "@/lib/config";
 
 type TestTarget = "proxmox" | "ssh" | "llm" | "zabbix" | "wazuh";
 
@@ -26,10 +30,21 @@ export async function POST(request: NextRequest) {
     return testLlm(data);
   }
 
-  // TODO(task-10): implement real SSH, Zabbix, Wazuh connection tests using their respective clients.
+  if (target === "ssh") {
+    return testSsh(data);
+  }
+
+  if (target === "zabbix") {
+    return testZabbix(data);
+  }
+
+  if (target === "wazuh") {
+    return testWazuh(data);
+  }
+
   return NextResponse.json({
     ok: false,
-    message: "Test disponible une fois la configuration enregistrée",
+    message: `Cible de test inconnue: ${target}`,
   });
 }
 
@@ -135,6 +150,88 @@ async function testLlm(data: Record<string, unknown>) {
     }
   }
 
-  // TODO(task-10): add more provider tests
   return NextResponse.json({ ok: false, message: `Fournisseur LLM non reconnu: ${provider}` });
+}
+
+// ─── SSH bastion connection test ──────────────────────────────────────────────
+
+async function testSsh(data: Record<string, unknown>) {
+  const bastionHost = String(data.bastionHost ?? "");
+  const bastionPort = Number(data.bastionPort ?? 22);
+  const bastionUser = String(data.bastionUser ?? "");
+  const sshKeyPath = String(data.sshKeyPath ?? "");
+
+  if (!bastionHost || !bastionUser || !sshKeyPath) {
+    return NextResponse.json({ ok: false, message: "Champs SSH manquants (host, user, keyPath)" });
+  }
+
+  try {
+    // Build a minimal config for the SSH test
+    const cfg = {
+      bastionHost,
+      bastionPort,
+      bastionUser,
+      sshKeyPath,
+    } as unknown as InfrastructureConfig;
+
+    const result = await testBastionConnection(cfg);
+    return NextResponse.json(result);
+  } catch (err) {
+    logger.warn("SSH test failed", { err: String(err) });
+    return NextResponse.json({ ok: false, message: `SSH inaccessible: ${String(err).slice(0, 120)}` });
+  }
+}
+
+// ─── Zabbix connection test ───────────────────────────────────────────────────
+
+async function testZabbix(data: Record<string, unknown>) {
+  const zabbixUrl = String(data.zabbixUrl ?? "");
+  const zabbixUser = String(data.zabbixUser ?? "");
+  const zabbixPassword = String(data.zabbixPassword ?? "");
+
+  if (!zabbixUrl || !zabbixUser) {
+    return NextResponse.json({ ok: false, message: "Champs Zabbix manquants (url, user)" });
+  }
+
+  try {
+    const cfg = {
+      zabbixUrl,
+      zabbixUser,
+      zabbixPassword,
+    } as unknown as InfrastructureConfig;
+
+    const client = new ZabbixClient(cfg);
+    const result = await client.testConnection();
+    return NextResponse.json(result);
+  } catch (err) {
+    logger.warn("Zabbix test failed", { err: String(err) });
+    return NextResponse.json({ ok: false, message: `Zabbix inaccessible: ${String(err).slice(0, 120)}` });
+  }
+}
+
+// ─── Wazuh connection test ────────────────────────────────────────────────────
+
+async function testWazuh(data: Record<string, unknown>) {
+  const wazuhUrl = String(data.wazuhUrl ?? "");
+  const wazuhUser = String(data.wazuhUser ?? "");
+  const wazuhPassword = String(data.wazuhPassword ?? "");
+
+  if (!wazuhUrl || !wazuhUser) {
+    return NextResponse.json({ ok: false, message: "Champs Wazuh manquants (url, user)" });
+  }
+
+  try {
+    const cfg = {
+      wazuhUrl,
+      wazuhUser,
+      wazuhPassword,
+    } as unknown as InfrastructureConfig;
+
+    const client = new WazuhClient(cfg);
+    const result = await client.testConnection();
+    return NextResponse.json(result);
+  } catch (err) {
+    logger.warn("Wazuh test failed", { err: String(err) });
+    return NextResponse.json({ ok: false, message: `Wazuh inaccessible: ${String(err).slice(0, 120)}` });
+  }
 }
