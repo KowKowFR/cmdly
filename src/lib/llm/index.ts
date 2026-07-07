@@ -1,9 +1,9 @@
-import type { InfrastructureConfig } from "../config.js";
-import type { LLMProvider } from "../../types/llm.js";
-import { OpenAIProvider } from "./openai.js";
+import type { InfrastructureConfig } from "../config";
+import type { LLMProvider } from "../../types/llm";
+import { OpenAIProvider } from "./openai";
 
 export type { LLMProvider };
-export type { LLMMessage, LLMTool, LLMToolCall, LLMToolResult, LLMEvent } from "../../types/llm.js";
+export type { LLMMessage, LLMTool, LLMToolCall, LLMToolResult, LLMEvent } from "../../types/llm";
 
 /**
  * Returns the LLMProvider implementation for the given provider name.

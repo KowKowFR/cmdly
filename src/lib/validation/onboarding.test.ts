@@ -6,7 +6,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
 // Schemas live in the same directory
-import { onboardingSchemas } from "./onboarding.js";
+import { onboardingSchemas } from "./onboarding";
 
 // ─── Step 2 — Admin account ───────────────────────────────────────────────────
 

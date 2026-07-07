@@ -1,4 +1,4 @@
-import type { LLMEvent } from "../../types/llm.js";
+import type { LLMEvent } from "../../types/llm";
 
 // ─── SSE helpers for the chat orchestrator (Task 11) ─────────────────────────
 

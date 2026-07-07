@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import type { LLMEvent } from "../../types/llm.js";
-import { encodeSSE, sseStream } from "./streaming.js";
+import type { LLMEvent } from "../../types/llm";
+import { encodeSSE, sseStream } from "./streaming";
 
 // ─── encodeSSE: exact wire format ────────────────────────────────────────────
 

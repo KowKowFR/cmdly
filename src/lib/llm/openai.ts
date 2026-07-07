@@ -1,6 +1,6 @@
 import OpenAI from "openai";
-import type { LLMEvent, LLMMessage, LLMTool, LLMToolCall, LLMProvider } from "../../types/llm.js";
-import { logger } from "../logger.js";
+import type { LLMEvent, LLMMessage, LLMTool, LLMToolCall, LLMProvider } from "../../types/llm";
+import { logger } from "../logger";
 
 // ─── Narrow types for the injectable client ───────────────────────────────────
 

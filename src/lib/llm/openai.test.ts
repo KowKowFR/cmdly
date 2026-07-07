@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import type { LLMEvent, LLMMessage, LLMTool } from "../../types/llm.js";
-import type { OpenAIClientLike, StreamChunk } from "./openai.js";
-import { OpenAIProvider } from "./openai.js";
+import type { LLMEvent, LLMMessage, LLMTool } from "../../types/llm";
+import type { OpenAIClientLike, StreamChunk } from "./openai";
+import { OpenAIProvider } from "./openai";
 
 // ─── Fake client helpers ──────────────────────────────────────────────────────
 
