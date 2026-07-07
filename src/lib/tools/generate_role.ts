@@ -13,6 +13,7 @@ import { join, resolve, relative } from "node:path";
 import type { Tool } from "@/types/tools";
 import { register } from "./registry";
 import { getProvider } from "@/lib/llm";
+import type { LLMProvider } from "@/types/llm";
 import { logger } from "@/lib/logger";
 
 // ─── Parameter schema ─────────────────────────────────────────────────────────
@@ -105,7 +106,7 @@ export const generateRole: Tool = {
       | "anthropic"
       | "ollama";
 
-    let provider;
+    let provider: LLMProvider;
     try {
       provider = getProvider(providerName, ctx.config);
     } catch (err) {

@@ -46,7 +46,10 @@ export const runPlaybookTool: Tool = {
     const resolvedPlaybook = resolve(join(resolvedRepo, playbookPath));
     const rel = relative(resolvedRepo, resolvedPlaybook);
 
-    if (rel.startsWith("..") || resolve(rel) === rel) {
+    // After resolve+relative normalization, startsWith("..") is sufficient to
+    // detect any attempt to escape the repo dir — resolve() always returns an
+    // absolute path so `resolve(rel) === rel` was always false and is removed.
+    if (rel.startsWith("..")) {
       logger.warn("run_playbook: path traversal attempt", { playbookPath });
       return {
         success: false,

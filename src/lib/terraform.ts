@@ -34,11 +34,17 @@ const _defaultRun: RunFn = promisify(execFile) as RunFn;
 // ─── HCL rendering helpers ────────────────────────────────────────────────────
 
 /**
- * Escape a string value for HCL: backslashes then double-quotes.
+ * Escape a string value for HCL: backslashes, then double-quotes, then `$`.
  * Result is placed between double-quotes in the .tfvars file.
+ *
+ * Order matters:
+ *   1. `\` → `\\`  (must be first so we don't double-escape later additions)
+ *   2. `"` → `\"`
+ *   3. `$` → `$$`  (HCL2 escapes a literal dollar by doubling it, preventing
+ *                   `${...}` template interpolation inside quoted strings)
  */
 function escapeTfString(value: string): string {
-  return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+  return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\$/g, "$$$$");
 }
 
 /**

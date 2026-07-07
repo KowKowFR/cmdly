@@ -139,6 +139,27 @@ test("writeTfvars() escapes backslashes and quotes in string values", async () =
   }
 });
 
+test("writeTfvars() escapes HCL template interpolation: $ becomes $$", async () => {
+  const tmpDir = await mkdtemp(join(tmpdir(), "cmdly-tfvars-interp-test-"));
+  try {
+    await writeTfvars(tmpDir, { name: "a${data.secret}b" });
+
+    const content = await readFile(join(tmpDir, "cmdly.auto.tfvars"), "utf-8");
+
+    // The written value must contain $${  (escaped dollar) not bare ${
+    assert.ok(
+      content.includes("$${"),
+      `Expected escaped '$\${' in:\n${content}`
+    );
+    assert.ok(
+      !content.includes('= "a${'),
+      `Bare '\${' interpolation must not appear in:\n${content}`
+    );
+  } finally {
+    await rm(tmpDir, { recursive: true, force: true });
+  }
+});
+
 // ─── Test 5: runner failure handling ─────────────────────────────────────────
 
 test("apply() returns ok:false when runner throws", async () => {
