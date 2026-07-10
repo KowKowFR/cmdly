@@ -1,0 +1,7 @@
+# Native packages allowed to run install/build scripts (pnpm blocks these by default).
+onlyBuiltDependencies:
+  - cpu-features
+  - esbuild
+  - sharp
+  - ssh2
+  - unrs-resolver

@@ -89,6 +89,14 @@ if [[ "$install_nodejs" == true ]]; then
   log "Node.js $(node -v) installed."
 fi
 
+# Enable pnpm via corepack (bundled with Node.js).
+if ! command -v pnpm &>/dev/null; then
+  log "Enabling pnpm via corepack..."
+  corepack enable
+  corepack prepare pnpm@latest --activate
+fi
+log "pnpm $(pnpm -v) ready."
+
 # ─── Step 3: Install Terraform ────────────────────────────────────────────────
 log "Checking Terraform..."
 
@@ -210,18 +218,18 @@ EOF
   log ".env written to ${ENV_FILE} (secrets NOT echoed to this log)."
 fi
 
-# ─── Step 8: npm install + build ─────────────────────────────────────────────
+# ─── Step 8: pnpm install + build ────────────────────────────────────────────
 # Install WITH devDependencies — next build needs tailwindcss/typescript/etc.;
 # drizzle-kit migrate needs drizzle-kit (also a devDependency).
-log "Installing npm dependencies and building..."
+log "Installing pnpm dependencies and building..."
 
-if [[ -f package-lock.json ]]; then
-  npm ci
+if [[ -f pnpm-lock.yaml ]]; then
+  pnpm install --frozen-lockfile
 else
-  npm install
+  pnpm install
 fi
 
-npm run build
+pnpm build
 log "Build complete."
 
 # ─── Step 9: Run DB migrations ───────────────────────────────────────────────
@@ -232,7 +240,7 @@ set -a
 # shellcheck source=/dev/null
 . "$ENV_FILE"
 set +a
-npx drizzle-kit migrate
+pnpm exec drizzle-kit migrate
 log "Migrations complete."
 
 # ─── Step 10: systemd service ────────────────────────────────────────────────
@@ -263,7 +271,7 @@ Type=simple
 User=${CMDLY_USER}
 WorkingDirectory=${CMDLY_DIR}
 EnvironmentFile=${CMDLY_DIR}/.env
-ExecStart=/usr/bin/npm run start
+ExecStart=/usr/bin/env pnpm start
 Restart=on-failure
 RestartSec=5
 StandardOutput=journal
@@ -300,7 +308,7 @@ printf '║  Next steps:                                         ║\n'
 printf '║  1. Open the URL above in your browser.              ║\n'
 printf '║  2. Complete the onboarding wizard to create the     ║\n'
 printf '║     first admin account and configure your infra.    ║\n'
-printf '║  3. (Optional) Run: npx tsx scripts/seed.ts          ║\n'
+printf '║  3. (Optional) Run: pnpm seed                        ║\n'
 printf '║     to pre-create an admin user non-interactively.   ║\n'
 printf '╚══════════════════════════════════════════════════════╝\n'
 printf '\n'
