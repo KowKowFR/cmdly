@@ -112,6 +112,16 @@ export function Wizard() {
     }
 
     setErrors({});
+
+    // Step 1 (Welcome) carries no data and runs before the admin account
+    // exists — there is no session yet, and the API requires auth for every
+    // step except 2. Advance client-side instead of POSTing (which 401s).
+    if (step === 1) {
+      setDirection(1);
+      setStep(2);
+      return;
+    }
+
     setIsLoading(true);
 
     try {
