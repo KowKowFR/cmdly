@@ -4,7 +4,7 @@
 set -euo pipefail
 
 # ─── Configuration ────────────────────────────────────────────────────────────
-CMDLY_REPO_URL="https://github.com/PLACEHOLDER/cmdly.git"   # set at publish time
+CMDLY_REPO_URL="${CMDLY_REPO_URL:-https://github.com/KowKowFR/cmdly.git}"   # override via env if needed
 CMDLY_DIR="/opt/cmdly"
 CMDLY_USER="cmdly"
 CMDLY_PORT="3000"
