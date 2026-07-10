@@ -266,6 +266,14 @@ if ! id "$CMDLY_USER" &>/dev/null; then
   log "System user '${CMDLY_USER}' created."
 fi
 
+# Ensure the service user has a writable HOME: terraform (run by create_vm as
+# this user) writes ~/.terraform.d, and other CLIs expect $HOME to exist.
+if [[ ! -d "/home/${CMDLY_USER}" ]]; then
+  mkdir -p "/home/${CMDLY_USER}"
+  chown "${CMDLY_USER}:${CMDLY_USER}" "/home/${CMDLY_USER}"
+  log "Home directory /home/${CMDLY_USER} created."
+fi
+
 # Ensure the app directory is owned by the cmdly user
 chown -R "${CMDLY_USER}:${CMDLY_USER}" "$CMDLY_DIR"
 
