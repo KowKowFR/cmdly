@@ -89,12 +89,14 @@ if [[ "$install_nodejs" == true ]]; then
   log "Node.js $(node -v) installed."
 fi
 
-# Enable pnpm via corepack (bundled with Node.js).
-if ! command -v pnpm &>/dev/null; then
-  log "Enabling pnpm via corepack..."
-  corepack enable
-  corepack prepare pnpm@latest --activate
-fi
+# Enable pnpm via corepack (bundled with Node.js), pinned to the version that
+# generated pnpm-lock.yaml. NOT pnpm@latest: recent pnpm majors (11+) require
+# Node 22+ (they import node:sqlite) and crash on the Node 20 baseline. Always
+# (re)activate the pin so a previously-activated incompatible pnpm is replaced.
+PNPM_VERSION="10.32.1"
+log "Enabling pnpm ${PNPM_VERSION} via corepack..."
+corepack enable
+corepack prepare "pnpm@${PNPM_VERSION}" --activate
 log "pnpm $(pnpm -v) ready."
 
 # ─── Step 3: Install Terraform ────────────────────────────────────────────────
