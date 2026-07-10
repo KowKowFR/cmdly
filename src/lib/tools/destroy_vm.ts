@@ -147,7 +147,7 @@ export const destroyVm: Tool = {
     logger.info("destroy_vm: terraform destroy", { vmid, name, targetAddress });
 
     try {
-      const result = await _terraform.destroy(repoPath, targetAddress);
+      const result = await _terraform.destroy(repoPath, targetAddress, tf.proxmoxEnv(ctx.config));
 
       if (!result.ok) {
         const summary = result.stderr.slice(0, 500);

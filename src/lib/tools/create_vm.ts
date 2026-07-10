@@ -69,8 +69,11 @@ export const createVm: Tool = {
         vm_disk: disk,
       });
 
+      // Proxmox provider credentials, injected via env (never written to disk).
+      const env = tf.proxmoxEnv(ctx.config);
+
       // 2. Plan
-      const planResult = await _facade.plan(repoPath);
+      const planResult = await _facade.plan(repoPath, env);
       if (!planResult.ok) {
         const summary = planResult.stderr.slice(0, 500);
         logger.warn("create_vm: terraform plan failed", { name, stderr: summary });
@@ -82,7 +85,7 @@ export const createVm: Tool = {
       }
 
       // 3. Apply
-      const applyResult = await _facade.apply(repoPath);
+      const applyResult = await _facade.apply(repoPath, env);
       if (!applyResult.ok) {
         const summary = applyResult.stderr.slice(0, 500);
         logger.warn("create_vm: terraform apply failed", { name, stderr: summary });

@@ -29,7 +29,7 @@ test("apply() calls runner with correct argv and cwd", async () => {
     return { stdout: "Apply complete!", stderr: "" };
   };
 
-  const result = await apply("/fake/repo", fakeRunner);
+  const result = await apply("/fake/repo", undefined, fakeRunner);
 
   assert.equal(result.ok, true);
   assert.equal(capturedCommand, "terraform");
@@ -53,7 +53,7 @@ test("plan() calls runner with correct argv", async () => {
     return { stdout: "Plan: 1 to add.", stderr: "" };
   };
 
-  const result = await plan("/fake/repo", fakeRunner);
+  const result = await plan("/fake/repo", undefined, fakeRunner);
 
   assert.equal(result.ok, true);
   assert.deepEqual(capturedArgs, ["plan", "-input=false", "-no-color"]);
@@ -69,7 +69,7 @@ test("destroy() passes -target as separate argv element", async () => {
     return { stdout: "Destroy complete!", stderr: "" };
   };
 
-  const result = await destroy("/fake/repo", "proxmox_vm_qemu.web-01", fakeRunner);
+  const result = await destroy("/fake/repo", "proxmox_vm_qemu.web-01", undefined, fakeRunner);
 
   assert.equal(result.ok, true);
   assert.deepEqual(capturedArgs, [
@@ -90,7 +90,7 @@ test("destroy() without target omits -target", async () => {
     return { stdout: "Destroy complete!", stderr: "" };
   };
 
-  await destroy("/fake/repo", undefined, fakeRunner);
+  await destroy("/fake/repo", undefined, undefined, fakeRunner);
 
   assert.ok(!capturedArgs.includes("-target"), "should not include -target");
 });
@@ -171,7 +171,7 @@ test("apply() returns ok:false when runner throws", async () => {
     throw err;
   };
 
-  const result = await apply("/fake/repo", failRunner);
+  const result = await apply("/fake/repo", undefined, failRunner);
 
   assert.equal(result.ok, false);
   assert.ok(result.stderr.includes("Error: resource not found"));

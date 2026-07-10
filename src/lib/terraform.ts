@@ -11,6 +11,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import type { InfrastructureConfig } from "@/lib/config";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -30,6 +31,38 @@ export type RunFn = (
 // ─── Default runner ───────────────────────────────────────────────────────────
 
 const _defaultRun: RunFn = promisify(execFile) as RunFn;
+
+// ─── Provider credentials ─────────────────────────────────────────────────────
+
+/**
+ * Build the environment the bpg/proxmox provider reads for authentication,
+ * derived from the stored (decrypted-in-memory) infrastructure config. Passing
+ * these as process env keeps the API token out of any on-disk .tf/.tfvars file.
+ * Returns an empty object when Proxmox isn't configured (nothing to inject).
+ */
+export function proxmoxEnv(
+  cfg: Pick<
+    InfrastructureConfig,
+    "proxmoxHost" | "proxmoxPort" | "proxmoxUser" | "proxmoxTokenId" | "proxmoxTokenSecret"
+  >
+): Record<string, string> {
+  if (!cfg.proxmoxHost || !cfg.proxmoxTokenId || !cfg.proxmoxTokenSecret) {
+    return {};
+  }
+  const port = cfg.proxmoxPort ?? 8006;
+  return {
+    PROXMOX_VE_ENDPOINT: `https://${cfg.proxmoxHost}:${port}/`,
+    // Proxmox API token id form: USER@REALM!TOKENID=SECRET
+    PROXMOX_VE_API_TOKEN: `${cfg.proxmoxUser}!${cfg.proxmoxTokenId}=${cfg.proxmoxTokenSecret}`,
+    PROXMOX_VE_INSECURE: "true",
+  };
+}
+
+/** Merge caller-supplied env over the current process env (or undefined). */
+function mergedEnv(env?: Record<string, string>): NodeJS.ProcessEnv | undefined {
+  if (!env || Object.keys(env).length === 0) return undefined;
+  return { ...process.env, ...env };
+}
 
 // ─── HCL rendering helpers ────────────────────────────────────────────────────
 
@@ -84,13 +117,14 @@ export async function writeTfvars(
  */
 export async function plan(
   repoPath: string,
+  env?: Record<string, string>,
   runner: RunFn = _defaultRun
 ): Promise<TerraformResult> {
   try {
     const { stdout, stderr } = await runner(
       "terraform",
       ["plan", "-input=false", "-no-color"],
-      { cwd: repoPath, timeout: 120_000 }
+      { cwd: repoPath, timeout: 120_000, env: mergedEnv(env) }
     );
     return { ok: true, stdout, stderr };
   } catch (err) {
@@ -109,13 +143,14 @@ export async function plan(
  */
 export async function apply(
   repoPath: string,
+  env?: Record<string, string>,
   runner: RunFn = _defaultRun
 ): Promise<TerraformResult> {
   try {
     const { stdout, stderr } = await runner(
       "terraform",
       ["apply", "-auto-approve", "-input=false", "-no-color"],
-      { cwd: repoPath, timeout: 300_000 }
+      { cwd: repoPath, timeout: 300_000, env: mergedEnv(env) }
     );
     return { ok: true, stdout, stderr };
   } catch (err) {
@@ -136,6 +171,7 @@ export async function apply(
 export async function destroy(
   repoPath: string,
   targetAddress?: string,
+  env?: Record<string, string>,
   runner: RunFn = _defaultRun
 ): Promise<TerraformResult> {
   const args = ["destroy", "-auto-approve", "-input=false", "-no-color"];
@@ -146,6 +182,7 @@ export async function destroy(
     const { stdout, stderr } = await runner("terraform", args, {
       cwd: repoPath,
       timeout: 300_000,
+      env: mergedEnv(env),
     });
     return { ok: true, stdout, stderr };
   } catch (err) {
