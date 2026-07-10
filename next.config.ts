@@ -19,11 +19,20 @@ const nextConfig: NextConfig = {
             value: "strict-origin-when-cross-origin",
           },
           {
-            // CSP is intentionally pragmatic at scaffold stage.
-            // Tighten script-src once script needs (nonce/hash) are known.
+            // Content-Security-Policy.
+            // NOTE on `script-src 'unsafe-inline'`: Next.js (App Router / React 19
+            // RSC) streams the hydration flight payload through inline
+            // `<script>self.__next_f.push(...)</script>` tags. Without an explicit
+            // script-src the directive falls back to `default-src 'self'`, which
+            // forbids inline scripts — those flight chunks never execute, the RSC
+            // stream never completes ("Connection closed"), hydration fails and the
+            // page renders blank. Allowing inline scripts unblocks hydration.
+            // Hardening path: switch to a per-request nonce injected in
+            // src/proxy.ts and drop 'unsafe-inline'.
             key: "Content-Security-Policy",
             value: [
               "default-src 'self'",
+              "script-src 'self' 'unsafe-inline'",
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self' data:",
               "connect-src 'self'",

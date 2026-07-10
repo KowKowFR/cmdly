@@ -33,6 +33,21 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // ── FIRST-RUN ONBOARDING BOOTSTRAP ─────────────────────────────────────────
+  // The onboarding wizard (and its API) MUST be reachable without a session:
+  // this is where the very first admin account is created. Requiring a session
+  // here would make first-run impossible (chicken-and-egg). The API route
+  // enforces its own bootstrap rules (step 2 allowed only when no admin exists;
+  // every step 403s once onboarding is complete), so leaving it open is safe.
+  // Once onboarding IS complete, lock the wizard page (bounce to "/") but let
+  // the API through so it can answer with its own 403.
+  if (pathname.startsWith("/onboarding") || pathname.startsWith("/api/onboarding")) {
+    const completed = await isOnboardingCompleted();
+    if (!completed) return NextResponse.next();
+    if (pathname.startsWith("/api/")) return NextResponse.next();
+    return NextResponse.redirect(new URL("/", request.url));
+  }
+
   const session = await auth.api.getSession({
     headers: request.headers,
   });
@@ -45,18 +60,12 @@ export async function proxy(request: NextRequest) {
 
   // ── ONBOARDING GATE ──────────────────────────────────────────────────────
   // Authenticated users who haven't completed onboarding → /onboarding.
-  // Skip the check for paths that are always exempt (onboarding itself,
-  // login, /api/*, static assets already filtered above).
+  // Skip the check for paths that are always exempt (login, /api/*, static
+  // assets already filtered above; onboarding itself handled earlier).
   if (!isOnboardingExempt(pathname)) {
     const completed = await isOnboardingCompleted();
     if (!completed) {
       return NextResponse.redirect(new URL("/onboarding", request.url));
-    }
-  } else if (pathname.startsWith("/onboarding")) {
-    // If onboarding is already done, bounce back to dashboard.
-    const completed = await isOnboardingCompleted();
-    if (completed) {
-      return NextResponse.redirect(new URL("/", request.url));
     }
   }
   // ─────────────────────────────────────────────────────────────────────────
