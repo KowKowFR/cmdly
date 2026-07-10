@@ -10,9 +10,9 @@ CMDLY_USER="cmdly"
 CMDLY_PORT="3000"
 PG_DB="cmdly"
 PG_USER="cmdly"
-# Node 22 LTS: undici v8 (used for the self-signed-TLS dispatcher) calls
-# util.markAsUncloneable, which is absent on Node 20 and crashes `next build`.
-NODE_MIN_VERSION=22
+# Node 24 LTS (Krypton): latest LTS. Node 20 lacks util.markAsUncloneable
+# (used by undici v8's self-signed-TLS dispatcher) and crashes `next build`.
+NODE_MIN_VERSION=24
 PG_MIN_VERSION=15
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -68,7 +68,7 @@ apt-get update -qq
 log "Installing build toolchain (build-essential, python3)..."
 apt-get install -y -qq build-essential python3
 
-# ─── Step 2: Install Node.js 22 ───────────────────────────────────────────────
+# ─── Step 2: Install Node.js 24 ───────────────────────────────────────────────
 log "Checking Node.js..."
 
 install_nodejs=true
@@ -98,10 +98,11 @@ if [[ "$install_nodejs" == true ]]; then
 fi
 
 # Enable pnpm via corepack (bundled with Node.js), pinned to the version that
-# generated pnpm-lock.yaml. NOT pnpm@latest: recent pnpm majors (11+) require
-# Node 22+ (they import node:sqlite) and crash on the Node 20 baseline. Always
-# (re)activate the pin so a previously-activated incompatible pnpm is replaced.
-PNPM_VERSION="10.32.1"
+# generated pnpm-lock.yaml. Kept on the pnpm 10 line: pnpm 11 changed the
+# native-build approval model (ignores onlyBuiltDependencies, rewrites
+# pnpm-workspace.yaml), which breaks reproducible installs here. Always
+# (re)activate the pin so a previously activated/incompatible pnpm is replaced.
+PNPM_VERSION="10.34.3"
 log "Enabling pnpm ${PNPM_VERSION} via corepack..."
 corepack enable
 corepack prepare "pnpm@${PNPM_VERSION}" --activate
