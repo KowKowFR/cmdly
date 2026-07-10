@@ -1,6 +1,13 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Keep native/Node-only packages out of the server bundle. ssh2 ships a
+  // native `.node` crypto binding (built when a toolchain is present) that
+  // Turbopack cannot place into an ESM chunk ("non-ecmascript placeable
+  // asset"); pg/undici are also happier required at runtime. Next loads these
+  // via Node's require from node_modules instead of bundling them.
+  serverExternalPackages: ["ssh2", "node-ssh", "cpu-features", "pg"],
+
   async headers() {
     return [
       {
