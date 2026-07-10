@@ -10,7 +10,9 @@ CMDLY_USER="cmdly"
 CMDLY_PORT="3000"
 PG_DB="cmdly"
 PG_USER="cmdly"
-NODE_MIN_VERSION=20
+# Node 22 LTS: undici v8 (used for the self-signed-TLS dispatcher) calls
+# util.markAsUncloneable, which is absent on Node 20 and crashes `next build`.
+NODE_MIN_VERSION=22
 PG_MIN_VERSION=15
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -60,7 +62,13 @@ esac
 
 apt-get update -qq
 
-# ─── Step 2: Install Node.js 20 ───────────────────────────────────────────────
+# Toolchain for native node modules (ssh2 crypto binding, cpu-features).
+# Optional — the app falls back to pure-JS crypto — but building them removes
+# noisy node-gyp errors and gives node-ssh its faster native path.
+log "Installing build toolchain (build-essential, python3)..."
+apt-get install -y -qq build-essential python3
+
+# ─── Step 2: Install Node.js 22 ───────────────────────────────────────────────
 log "Checking Node.js..."
 
 install_nodejs=true
