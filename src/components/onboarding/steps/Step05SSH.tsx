@@ -50,27 +50,67 @@ export function Step05SSH({ formData, updateData, errors }: StepProps) {
     </div>
   );
 
+  const sshMode = formData.sshMode === "local" ? "local" : "bastion";
+
   return (
     <div className="space-y-5">
       <div className="flex items-center gap-3 mb-1">
         <Terminal className="w-5 h-5 text-blue-400" />
-        <h2 className="text-xl font-semibold text-white">Bastion SSH</h2>
+        <h2 className="text-xl font-semibold text-white">Accès SSH</h2>
       </div>
       <p className="text-sm text-slate-400">
-        Point d'entrée SSH pour les opérations Ansible et Terraform distants.
+        Comment CMDLY exécute les commandes sur l'infrastructure (services, logs).
       </p>
 
-      <div className="grid grid-cols-2 gap-4">
-        <div className="col-span-2 sm:col-span-1">
-          {field("bastionHost", "Hôte bastion", { placeholder: "bastion.exemple.fr" })}
-        </div>
-        <div className="col-span-2 sm:col-span-1">
-          {field("bastionPort", "Port SSH", { placeholder: "22", hint: "Défaut : 22" })}
-        </div>
+      {/* Mode selector */}
+      <div className="grid grid-cols-2 gap-3">
+        {([
+          { value: "bastion", title: "Via un bastion", desc: "Rebond SSH vers les VMs" },
+          { value: "local", title: "Local (ce serveur)", desc: "Commandes sur l'hôte CMDLY" },
+        ] as const).map((opt) => (
+          <button
+            key={opt.value}
+            type="button"
+            onClick={() => {
+              setTestResult(null);
+              updateData({ sshMode: opt.value });
+            }}
+            className={`rounded-lg border p-3 text-left transition-colors ${
+              sshMode === opt.value
+                ? "border-blue-500 bg-blue-500/10"
+                : "border-slate-700 bg-slate-800 hover:border-slate-600"
+            }`}
+          >
+            <p className="text-sm font-medium text-white">{opt.title}</p>
+            <p className="text-xs text-slate-400">{opt.desc}</p>
+          </button>
+        ))}
       </div>
 
-      {field("bastionUser", "Utilisateur SSH", { placeholder: "ops" })}
-      {field("sshKeyPath", "Chemin de la clé privée", { placeholder: "/home/user/.ssh/id_ed25519", hint: "Chemin absolu sur ce serveur" })}
+      {sshMode === "bastion" ? (
+        <>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="col-span-2 sm:col-span-1">
+              {field("bastionHost", "Hôte bastion", { placeholder: "bastion.exemple.fr" })}
+            </div>
+            <div className="col-span-2 sm:col-span-1">
+              {field("bastionPort", "Port SSH", { placeholder: "22", hint: "Défaut : 22" })}
+            </div>
+          </div>
+
+          {field("bastionUser", "Utilisateur SSH", { placeholder: "ops" })}
+          {field("sshKeyPath", "Chemin de la clé privée", { placeholder: "/home/user/.ssh/id_ed25519", hint: "Chemin absolu sur ce serveur" })}
+        </>
+      ) : (
+        <div className="rounded-lg border border-slate-700 bg-slate-800/50 p-3 text-sm text-slate-300">
+          Les commandes (systemctl, lecture de logs) s'exécuteront directement sur
+          le serveur CMDLY. Aucun bastion ni clé SSH requis.
+          <p className="mt-1 text-xs text-slate-500">
+            Note : les actions privilégiées (redémarrage/arrêt de service) nécessitent
+            que le service CMDLY dispose des droits adéquats sur cet hôte.
+          </p>
+        </div>
+      )}
 
       <div className="pt-2 space-y-2">
         <Button

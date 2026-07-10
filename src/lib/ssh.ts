@@ -21,15 +21,56 @@
  *  - command + parameters are built as fixed strings + user arg in last slot.
  */
 
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { NodeSSH } from "node-ssh";
 import type { SSHExecCommandResponse } from "node-ssh";
 import type { InfrastructureConfig } from "@/lib/config";
 import { logger } from "@/lib/logger";
 
+const execFileAsync = promisify(execFile);
+
 export interface CommandResult {
   code: number;
   stdout: string;
   stderr: string;
+}
+
+// ─── Local execution (sshMode = "local") ─────────────────────────────────────
+
+/**
+ * Run a command directly on the CMDLY host via execFile — NO shell, so each
+ * arg is passed literally (same injection-safety guarantee as node-ssh's
+ * escaped exec). Used when sshMode is "local": there is no bastion and no
+ * remote target; tools operate on this server. `vmHost` is ignored.
+ *
+ * execFile rejects on a non-zero exit code, but the rejection carries the
+ * numeric code plus stdout/stderr — a normal outcome for e.g.
+ * `systemctl is-active` on a stopped unit — so we translate it back into a
+ * CommandResult rather than throwing. Spawn failures (ENOENT, …) do throw.
+ */
+async function runLocalCommand(
+  command: string,
+  args: string[],
+): Promise<CommandResult> {
+  try {
+    const { stdout, stderr } = await execFileAsync(command, args, {
+      timeout: 15_000,
+      maxBuffer: 1024 * 1024,
+    });
+    return { code: 0, stdout, stderr };
+  } catch (err) {
+    const e = err as NodeJS.ErrnoException & {
+      code?: number | string;
+      stdout?: string;
+      stderr?: string;
+    };
+    if (typeof e.code === "number") {
+      return { code: e.code, stdout: e.stdout ?? "", stderr: e.stderr ?? "" };
+    }
+    // Spawn failure (command not found, timeout, …).
+    throw err;
+  }
 }
 
 // ─── Jump-host helper ────────────────────────────────────────────────────────
@@ -47,7 +88,7 @@ export interface CommandResult {
 /** Subset of InfrastructureConfig that SSH functions actually read. */
 type SshConfig = Pick<
   InfrastructureConfig,
-  "bastionHost" | "bastionPort" | "bastionUser" | "sshKeyPath"
+  "sshMode" | "bastionHost" | "bastionPort" | "bastionUser" | "sshKeyPath"
 >;
 
 async function connectViaBastion(
@@ -99,6 +140,11 @@ export async function runCommand(
   command: string,
   args: string[],
 ): Promise<CommandResult> {
+  // Local mode: execute on the CMDLY host itself, no SSH/bastion, host ignored.
+  if (cfg.sshMode === "local") {
+    return runLocalCommand(command, args);
+  }
+
   const { bastion, target } = await connectViaBastion(cfg, host);
   try {
     const response: SSHExecCommandResponse = await target.exec(command, args, {
@@ -122,6 +168,21 @@ export async function runCommand(
 export async function testBastionConnection(
   cfg: SshConfig,
 ): Promise<{ ok: boolean; message: string }> {
+  // Local mode: verify we can spawn a command on this host.
+  if (cfg.sshMode === "local") {
+    try {
+      const result = await runLocalCommand("echo", ["ok"]);
+      if (result.stdout.trim() === "ok") {
+        logger.info("Local execution test OK");
+        return { ok: true, message: "Exécution locale opérationnelle (sur le serveur CMDLY)" };
+      }
+      return { ok: false, message: `Réponse inattendue: ${result.stderr.trim() || "vide"}` };
+    } catch (err) {
+      logger.warn("Local execution test failed", { err: String(err) });
+      return { ok: false, message: String(err) };
+    }
+  }
+
   if (!cfg.bastionHost) {
     return { ok: false, message: "bastionHost non configuré" };
   }

@@ -69,6 +69,7 @@ export function Wizard() {
     infraRepoType: "local",
     defaultLlmProvider: "openai",
     ldapEnabled: false,
+    sshMode: "bastion",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(false);

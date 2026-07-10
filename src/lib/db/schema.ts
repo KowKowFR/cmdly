@@ -151,6 +151,8 @@ export const infrastructureConfig = pgTable("infrastructure_config", {
   infraRepoGitUrl: text("infra_repo_git_url"),
   infraRepoGitBranch: text("infra_repo_git_branch"),
   // SSH / bastion
+  // sshMode: "bastion" (jump host) or "local" (run commands on the CMDLY host).
+  sshMode: text("ssh_mode").default("bastion"),
   sshKeyPath: text("ssh_key_path"),
   bastionHost: text("bastion_host"),
   bastionPort: integer("bastion_port"),

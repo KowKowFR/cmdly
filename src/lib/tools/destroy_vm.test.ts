@@ -32,6 +32,7 @@ const fakeConfig: InfrastructureConfig = {
   infraRepoType: "local",
   infraRepoGitUrl: "",
   infraRepoGitBranch: "",
+  sshMode: "bastion",
   sshKeyPath: "",
   bastionHost: "",
   bastionPort: null,

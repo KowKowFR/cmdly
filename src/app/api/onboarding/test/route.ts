@@ -155,6 +155,20 @@ async function testLlm(data: Record<string, unknown>) {
 // ─── SSH bastion connection test ──────────────────────────────────────────────
 
 async function testSsh(data: Record<string, unknown>) {
+  const sshMode = data.sshMode === "local" ? "local" : "bastion";
+
+  // Local mode needs no bastion fields — it just runs a command on this host.
+  if (sshMode === "local") {
+    const result = await testBastionConnection({
+      sshMode: "local",
+      bastionHost: "",
+      bastionPort: 22,
+      bastionUser: "",
+      sshKeyPath: "",
+    });
+    return NextResponse.json(result);
+  }
+
   const bastionHost = String(data.bastionHost ?? "");
   const bastionPort = Number(data.bastionPort ?? 22);
   const bastionUser = String(data.bastionUser ?? "");
@@ -167,6 +181,7 @@ async function testSsh(data: Record<string, unknown>) {
   try {
     // Build a minimal config for the SSH test — typed precisely to what testBastionConnection needs
     const cfg = {
+      sshMode: "bastion" as const,
       bastionHost,
       bastionPort,
       bastionUser,

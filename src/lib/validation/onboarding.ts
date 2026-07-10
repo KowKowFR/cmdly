@@ -49,12 +49,20 @@ const step4Schema = z.discriminatedUnion("infraRepoType", [
 
 // ─── Step 5 — SSH / Bastion ───────────────────────────────────────────────────
 
-const step5Schema = z.object({
-  bastionHost: nonempty("Hôte bastion requis"),
-  bastionPort: z.coerce.number().int().min(1).max(65535).default(22),
-  bastionUser: nonempty("Utilisateur SSH requis"),
-  sshKeyPath: nonempty("Chemin de la clé SSH requis"),
-});
+const step5Schema = z.discriminatedUnion("sshMode", [
+  // Local: commands run on the CMDLY host itself — no bastion fields needed.
+  z.object({
+    sshMode: z.literal("local"),
+  }),
+  // Bastion: jump host through which tools reach the target VMs.
+  z.object({
+    sshMode: z.literal("bastion"),
+    bastionHost: nonempty("Hôte bastion requis"),
+    bastionPort: z.coerce.number().int().min(1).max(65535).default(22),
+    bastionUser: nonempty("Utilisateur SSH requis"),
+    sshKeyPath: nonempty("Chemin de la clé SSH requis"),
+  }),
+]);
 
 // ─── Step 6 — Ansible Vault ───────────────────────────────────────────────────
 

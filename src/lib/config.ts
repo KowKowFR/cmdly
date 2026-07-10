@@ -20,6 +20,7 @@ export interface InfrastructureConfig {
   infraRepoGitUrl: string;
   infraRepoGitBranch: string;
   // SSH / bastion
+  sshMode: "bastion" | "local"; // "local" runs tool commands on the CMDLY host
   sshKeyPath: string;
   bastionHost: string;
   bastionPort: number | null;
@@ -78,6 +79,7 @@ const DEFAULT_CONFIG: InfrastructureConfig = {
   infraRepoPath: "",
   infraRepoGitUrl: "",
   infraRepoGitBranch: "",
+  sshMode: "bastion",
   sshKeyPath: "",
   bastionHost: "",
   bastionPort: null,
@@ -143,6 +145,7 @@ export async function getConfig(): Promise<InfrastructureConfig> {
     infraRepoPath: row.infraRepoPath ?? "",
     infraRepoGitUrl: row.infraRepoGitUrl ?? "",
     infraRepoGitBranch: row.infraRepoGitBranch ?? "",
+    sshMode: row.sshMode === "local" ? "local" : "bastion",
     sshKeyPath: row.sshKeyPath ?? "",
     bastionHost: row.bastionHost ?? "",
     bastionPort: row.bastionPort ?? null,

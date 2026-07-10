@@ -1,0 +1,1 @@
+ALTER TABLE "infrastructure_config" ADD COLUMN "ssh_mode" text DEFAULT 'bastion';

@@ -15,6 +15,13 @@
       "when": 1783411300468,
       "tag": "0001_sharp_valeria_richards",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1783677402709,
+      "tag": "0002_ambitious_hex",
+      "breakpoints": true
     }
   ]
 }

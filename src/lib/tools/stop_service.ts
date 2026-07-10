@@ -22,7 +22,7 @@ import type { InfrastructureConfig } from "@/lib/config";
 
 type SshConfig = Pick<
   InfrastructureConfig,
-  "bastionHost" | "bastionPort" | "bastionUser" | "sshKeyPath"
+  "sshMode" | "bastionHost" | "bastionPort" | "bastionUser" | "sshKeyPath"
 >;
 
 type RunCommandFn = (
