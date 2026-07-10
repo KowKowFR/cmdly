@@ -199,6 +199,9 @@ log "Setting up CMDLY application..."
 
 if [[ -d "${CMDLY_DIR}/.git" ]]; then
   log "CMDLY already cloned at ${CMDLY_DIR}. Running git pull..."
+  # Step 10 chowns the tree to the cmdly user; on a re-run git then runs as
+  # root against a cmdly-owned repo and aborts with "dubious ownership".
+  git config --global --add safe.directory "$CMDLY_DIR"
   git -C "$CMDLY_DIR" pull --ff-only
 else
   log "Cloning CMDLY into ${CMDLY_DIR}..."
